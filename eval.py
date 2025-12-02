@@ -7,7 +7,7 @@ from time import perf_counter
 
 BASE_DIR = r"C:\Users\alexp\OneDrive\Υπολογιστής\Endpoint_Evaluation"
 
-INPUT_PATH = os.path.join(BASE_DIR, "data", "metaqa_full.jsonl")
+INPUT_PATH = os.path.join(BASE_DIR, "data", "metaqa_1hop_only.jsonl")
 OUTPUT_PATH = os.path.join(BASE_DIR, "results", "metaqa_llama3b_entity.jsonl")
 
 MODEL_NAME = "llama3.2:3b"
