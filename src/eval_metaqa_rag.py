@@ -1,9 +1,9 @@
-# evaluate_complete.py - Complete RAG Evaluation for MetaQA
+# eval_metaqa_rag.py - Complete RAG Evaluation for MetaQA
 
 import http.client
 import json
 import ast
-from time import perf_counter
+from time import perf_counter, sleep
 from pathlib import Path
 import re
 
@@ -17,6 +17,8 @@ GENERATE_ENDPOINT = "/SemanticRAG/generate"
 
 RETRIEVAL_MODEL = "metaqa"
 GENERATION_MODEL = "llama3.1:8b"  # Change this to test different models
+
+SLEEP_BETWEEN_REQUESTS = 0.7  # seconds - prevent endpoint overload
 
 
 # ============================================================================
@@ -269,7 +271,7 @@ def evaluate(jsonl_path: str, output_path: str = None):
     t_start = perf_counter()
 
     print(f"\n{'='*60}")
-    print(f"EVALUATION: {GENERATION_MODEL}")
+    print(f"RAG EVALUATION: {GENERATION_MODEL}")
     print(f"{'='*60}\n")
 
     with open(output_path, "w", encoding="utf-8") as fout:
@@ -306,11 +308,14 @@ def evaluate(jsonl_path: str, output_path: str = None):
                 acc = correct / total * 100
                 print(f"[{total}] accuracy: {acc:.2f}% | last: {'✓' if ok else '✗'} {question[:50]}")
 
+            # Sleep to prevent endpoint overload
+            sleep(SLEEP_BETWEEN_REQUESTS)
+
     t_end = perf_counter()
     acc = correct / total * 100 if total > 0 else 0.0
 
     print(f"\n{'='*60}")
-    print("EVALUATION COMPLETE")
+    print("RAG EVALUATION COMPLETE")
     print(f"{'='*60}")
     print(f"Model: {GENERATION_MODEL}")
     print(f"Dataset: {jsonl_path}")

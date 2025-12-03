@@ -1,8 +1,8 @@
-# evaluate_baseline.py - No-RAG Baseline Evaluation for MetaQA
+# eval_metaqa_simple.py - No-RAG Baseline Evaluation for MetaQA
 
 import http.client
 import json
-from time import perf_counter
+from time import perf_counter, sleep
 from pathlib import Path
 import re
 
@@ -14,6 +14,8 @@ HOST = "demos.isl.ics.forth.gr"
 GENERATE_ENDPOINT = "/SemanticRAG/generate"
 
 GENERATION_MODEL = "llama3.1:8b"  # Change this to test different models
+
+SLEEP_BETWEEN_REQUESTS = 0.7  # seconds - prevent endpoint overload
 
 
 # ============================================================================
@@ -216,6 +218,9 @@ def evaluate(jsonl_path: str, output_path: str = None):
                 acc = correct / total * 100
                 print(f"[{total}] accuracy: {acc:.2f}% | last: {'✓' if ok else '✗'} {question[:50]}")
 
+            # Sleep to prevent endpoint overload
+            sleep(SLEEP_BETWEEN_REQUESTS)
+
     t_end = perf_counter()
     acc = correct / total * 100 if total > 0 else 0.0
 
@@ -243,4 +248,3 @@ def evaluate(jsonl_path: str, output_path: str = None):
 if __name__ == "__main__":
     # Run baseline evaluation on MetaQA 1-hop
     evaluate("data/metaqa_1hop_only.jsonl")
-# ============================================================================
