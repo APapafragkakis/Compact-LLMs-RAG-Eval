@@ -147,8 +147,7 @@ def filter_relevant_facts(facts: list[str], question: str) -> list[str]:
     
     filtered = []
     for fact in facts:
-        fact_lower = fact.lower()
-        if "starred actors" in fact_lower and entity in fact_lower:
+        if entity in fact.lower():  # Generic - δουλεύει για όλα!
             filtered.append(fact)
     
     return filtered if filtered else facts
