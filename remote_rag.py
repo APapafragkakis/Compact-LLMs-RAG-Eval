@@ -46,8 +46,8 @@ def remote_retrieve(question: str):
 
 def build_generation_prompt(question: str, facts: list[str]) -> str:
     """
-    Build a simple prompt using retrieved facts as context.
-    No agent-style phrasing, just context + question + answer slot.
+    Χτίζει ένα απλό context: Facts + Question + οδηγία για το format της απάντησης.
+    Αυτό θα πάει ως user message στο LLM.
     """
     if not facts:
         return (
@@ -66,11 +66,30 @@ def build_generation_prompt(question: str, facts: list[str]) -> str:
     )
 
 
-def remote_generate(prompt: str):
+def remote_generate(user_prompt: str):
+    """
+    /SemanticRAG/generate περιμένει:
+    {
+      "model": ...,
+      "conversation": [
+        {"role": "system", "content": ...},
+        {"role": "user", "content": user_prompt}
+      ]
+    }
+    """
+    system_message = (
+        "You answer questions about movies using only the provided facts. "
+        "Return only the correct entity name as the answer, without punctuation or extra text."
+    )
+
     payload = {
         "model": MODEL_NAME,
-        "prompt": prompt,
+        "conversation": [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_prompt},
+        ],
     }
+
     body = json.dumps(payload)
     headers = {
         "Content-Type": "application/json",
@@ -112,6 +131,8 @@ def run_rag(question: str):
 if __name__ == "__main__":
     q = "what does [Grégoire Colin] appear in"
 
+    print("=== Running RAG for one question ===\n")
+
     res = run_rag(q)
 
     print("Question:", res["question"])
@@ -119,7 +140,7 @@ if __name__ == "__main__":
     for f in res["facts"]:
         print("  -", f)
 
-    print("\nPrompt sent to /generate:\n")
+    print("\nPrompt sent as USER message:\n")
     print(res["prompt"])
 
     print("\nANSWER FROM /generate:\n")
@@ -129,3 +150,4 @@ if __name__ == "__main__":
     print("  retrieval:", res["retrieval_latency"])
     print("  generation:", res["generation_latency"])
     print("  total:", res["total_latency"])
+    
