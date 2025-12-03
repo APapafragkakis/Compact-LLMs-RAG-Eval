@@ -10,11 +10,6 @@ MODEL_NAME = "metaqa"
 
 
 def remote_retrieve(question: str):
-    """
-    Κλήση στο /SemanticRAG/generateEmbeddings
-    Payload: { "model": MODEL_NAME, "prompt": question }
-    Επιστροφή: λίστα από facts (ως strings), latency, raw response.
-    """
     payload = {
         "model": MODEL_NAME,
         "prompt": question,
@@ -35,7 +30,6 @@ def remote_retrieve(question: str):
 
     latency = t1 - t0
 
-    # raw π.χ. "['-: Before the Rain starred actors Grégoire Colin']"
     try:
         lst = ast.literal_eval(raw)
     except Exception:
@@ -51,15 +45,8 @@ def remote_retrieve(question: str):
 
 
 def build_generation_prompt(question: str, facts: list[str]) -> str:
-    """
-    Χτίζει το user μήνυμα που θα πάει στο LLM (ως 'content' του role=user).
-    Δεν χρησιμοποιούμε πια πεδίο 'prompt' στο JSON, αλλά conversation.
-    """
     if not facts:
-        return (
-            f"Question:\n{question}\n\n"
-            f"Answer: (only the entity name, no punctuation)"
-        )
+        return f"Question:\n{question}\n\nAnswer: (only the entity name, no punctuation)"
 
     facts_block = "\n".join(f"- {f}" for f in facts)
 
@@ -73,19 +60,6 @@ def build_generation_prompt(question: str, facts: list[str]) -> str:
 
 
 def remote_generate(user_text: str):
-    """
-    Κλήση στο /SemanticRAG/generate
-
-    Ακολουθούμε ΑΚΡΙΒΩΣ το schema που σου έστειλαν:
-
-    data = {
-        "model": model_name,
-        "conversation": [
-            {"role": "system", "content": "..."},
-            {"role": "user", "content": user_text}
-        ]
-    }
-    """
     system_message = (
         "You answer questions about movies using only the provided facts. "
         "Return only the correct entity name as the answer, without punctuation or extra text."
@@ -120,12 +94,6 @@ def remote_generate(user_text: str):
 
 
 def run_rag(question: str):
-    """
-    Πλήρες RAG pipeline:
-    - Retrieval στο /generateEmbeddings
-    - Χτίσιμο user prompt από facts + question
-    - Generation στο /generate με model + conversation
-    """
     facts, t_retr, raw_retr = remote_retrieve(question)
     user_msg = build_generation_prompt(question, facts)
     answer, t_gen = remote_generate(user_msg)
@@ -145,8 +113,6 @@ def run_rag(question: str):
 
 if __name__ == "__main__":
     q = "what does [Grégoire Colin] appear in"
-
-    print("=== Running RAG for one question ===\n")
 
     res = run_rag(q)
 
