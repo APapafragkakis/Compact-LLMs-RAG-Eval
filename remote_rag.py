@@ -8,6 +8,7 @@ RETRIEVE_ENDPOINT = "/SemanticRAG/generateEmbeddings"
 GENERATE_ENDPOINT = "/SemanticRAG/generate"
 MODEL_NAME = "metaqa"
 
+
 def remote_retrieve(question: str):
     payload = {
         "model": MODEL_NAME,
@@ -42,24 +43,28 @@ def remote_retrieve(question: str):
 
     return facts, latency, raw
 
+
 def build_generation_prompt(question: str, facts: list[str]) -> str:
+    """
+    Build a simple prompt using retrieved facts as context.
+    No agent-style phrasing, just context + question + answer slot.
+    """
     if not facts:
-        return f"Question:\n{question}\n\nAnswer with ONLY the correct entity."
+        return (
+            f"Question:\n{question}\n\n"
+            f"Answer: (only the entity name, no punctuation)"
+        )
 
     facts_block = "\n".join(f"- {f}" for f in facts)
 
-    return f"""
-You are a QA system over a knowledge graph.
-Use ONLY the following facts to answer the question.
+    return (
+        f"Facts:\n"
+        f"{facts_block}\n\n"
+        f"Question:\n"
+        f"{question}\n\n"
+        f"Answer: (only the entity name, no punctuation)"
+    )
 
-Facts:
-{facts_block}
-
-Question:
-{question}
-
-Answer with ONLY the correct entity (no punctuation).
-""".strip()
 
 def remote_generate(prompt: str):
     payload = {
@@ -85,6 +90,7 @@ def remote_generate(prompt: str):
 
     return answer_text, latency
 
+
 def run_rag(question: str):
     facts, t_retr, raw_retr = remote_retrieve(question)
     prompt = build_generation_prompt(question, facts)
@@ -102,10 +108,9 @@ def run_rag(question: str):
         "raw_retrieval": raw_retr,
     }
 
+
 if __name__ == "__main__":
     q = "what does [Grégoire Colin] appear in"
-
-    print("=== Running RAG for one question ===\n")
 
     res = run_rag(q)
 
