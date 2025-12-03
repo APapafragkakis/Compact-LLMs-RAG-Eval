@@ -10,6 +10,11 @@ MODEL_NAME = "metaqa"
 
 
 def remote_retrieve(question: str):
+    """
+    Κλήση στο /SemanticRAG/generateEmbeddings
+    Payload: { "model": MODEL_NAME, "prompt": question }
+    Επιστροφή: λίστα από facts (ως strings), latency, raw response.
+    """
     payload = {
         "model": MODEL_NAME,
         "prompt": question,
@@ -30,6 +35,7 @@ def remote_retrieve(question: str):
 
     latency = t1 - t0
 
+    # raw π.χ. "['-: Before the Rain starred actors Grégoire Colin']"
     try:
         lst = ast.literal_eval(raw)
     except Exception:
@@ -46,8 +52,8 @@ def remote_retrieve(question: str):
 
 def build_generation_prompt(question: str, facts: list[str]) -> str:
     """
-    Χτίζει ένα απλό context: Facts + Question + οδηγία για το format της απάντησης.
-    Αυτό θα πάει ως user message στο LLM.
+    Χτίζει το user μήνυμα που θα πάει στο LLM (ως 'content' του role=user).
+    Δεν χρησιμοποιούμε πια πεδίο 'prompt' στο JSON, αλλά conversation.
     """
     if not facts:
         return (
@@ -66,15 +72,18 @@ def build_generation_prompt(question: str, facts: list[str]) -> str:
     )
 
 
-def remote_generate(user_prompt: str):
+def remote_generate(user_text: str):
     """
-    /SemanticRAG/generate περιμένει:
-    {
-      "model": ...,
-      "conversation": [
-        {"role": "system", "content": ...},
-        {"role": "user", "content": user_prompt}
-      ]
+    Κλήση στο /SemanticRAG/generate
+
+    Ακολουθούμε ΑΚΡΙΒΩΣ το schema που σου έστειλαν:
+
+    data = {
+        "model": model_name,
+        "conversation": [
+            {"role": "system", "content": "..."},
+            {"role": "user", "content": user_text}
+        ]
     }
     """
     system_message = (
@@ -86,7 +95,7 @@ def remote_generate(user_prompt: str):
         "model": MODEL_NAME,
         "conversation": [
             {"role": "system", "content": system_message},
-            {"role": "user", "content": user_prompt},
+            {"role": "user", "content": user_text},
         ],
     }
 
@@ -111,15 +120,21 @@ def remote_generate(user_prompt: str):
 
 
 def run_rag(question: str):
+    """
+    Πλήρες RAG pipeline:
+    - Retrieval στο /generateEmbeddings
+    - Χτίσιμο user prompt από facts + question
+    - Generation στο /generate με model + conversation
+    """
     facts, t_retr, raw_retr = remote_retrieve(question)
-    prompt = build_generation_prompt(question, facts)
-    answer, t_gen = remote_generate(prompt)
+    user_msg = build_generation_prompt(question, facts)
+    answer, t_gen = remote_generate(user_msg)
     total_latency = t_retr + t_gen
 
     return {
         "question": question,
         "facts": facts,
-        "prompt": prompt,
+        "prompt": user_msg,
         "answer": answer,
         "retrieval_latency": t_retr,
         "generation_latency": t_gen,
@@ -150,4 +165,3 @@ if __name__ == "__main__":
     print("  retrieval:", res["retrieval_latency"])
     print("  generation:", res["generation_latency"])
     print("  total:", res["total_latency"])
-    
