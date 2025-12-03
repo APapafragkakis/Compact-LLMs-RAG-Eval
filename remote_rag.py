@@ -8,9 +8,6 @@ RETRIEVE_ENDPOINT = "/SemanticRAG/generateEmbeddings"
 GENERATE_ENDPOINT = "/SemanticRAG/generate"
 MODEL_NAME = "metaqa"
 
-# -----------------------------------------------------------
-# 1) REMOTE RETRIEVAL
-# -----------------------------------------------------------
 def remote_retrieve(question: str):
     payload = {
         "model": MODEL_NAME,
@@ -32,7 +29,6 @@ def remote_retrieve(question: str):
 
     latency = t1 - t0
 
-    # raw example: "['-: Before the Rain starred actors Grégoire Colin']"
     try:
         lst = ast.literal_eval(raw)
     except Exception:
@@ -46,10 +42,6 @@ def remote_retrieve(question: str):
 
     return facts, latency, raw
 
-
-# -----------------------------------------------------------
-# 2) BUILD GENERATION PROMPT
-# -----------------------------------------------------------
 def build_generation_prompt(question: str, facts: list[str]) -> str:
     if not facts:
         return f"Question:\n{question}\n\nAnswer with ONLY the correct entity."
@@ -69,10 +61,6 @@ Question:
 Answer with ONLY the correct entity (no punctuation).
 """.strip()
 
-
-# -----------------------------------------------------------
-# 3) REMOTE GENERATION
-# -----------------------------------------------------------
 def remote_generate(prompt: str):
     payload = {
         "model": MODEL_NAME,
@@ -97,10 +85,6 @@ def remote_generate(prompt: str):
 
     return answer_text, latency
 
-
-# -----------------------------------------------------------
-# 4) FULL RAG PIPELINE
-# -----------------------------------------------------------
 def run_rag(question: str):
     facts, t_retr, raw_retr = remote_retrieve(question)
     prompt = build_generation_prompt(question, facts)
@@ -118,10 +102,6 @@ def run_rag(question: str):
         "raw_retrieval": raw_retr,
     }
 
-
-# -----------------------------------------------------------
-# 5) TEST SCRIPT
-# -----------------------------------------------------------
 if __name__ == "__main__":
     q = "what does [Grégoire Colin] appear in"
 
