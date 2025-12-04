@@ -1,11 +1,12 @@
-# eval_metaqa_rag.py - Complete RAG Evaluation for MetaQA
+# eval_metaqa_rag.py - Pure Jordan Replication with Auto-Resume
 
 import http.client
 import json
 import ast
+import string
+import re
 from time import perf_counter, sleep
 from pathlib import Path
-import re
 
 # ============================================================================
 # CONFIGURATION
@@ -16,16 +17,17 @@ RETRIEVE_ENDPOINT = "/SemanticRAG/generateEmbeddings"
 GENERATE_ENDPOINT = "/SemanticRAG/generate"
 
 RETRIEVAL_MODEL = "metaqa"
-GENERATION_MODEL = "llama3.1:8b"  # Change this to test different models
+GENERATION_MODEL = "llama3.1:8b"
 
-SLEEP_BETWEEN_REQUESTS = 0.7  # seconds - prevent endpoint overload
+SLEEP_BETWEEN_REQUESTS = 0.7
 
 
 # ============================================================================
-# RAG FUNCTIONS
+# RAG FUNCTIONS - PURE JORDAN
 # ============================================================================
 
 def remote_retrieve(question: str):
+    """Retrieval - returns top facts"""
     payload = {"model": RETRIEVAL_MODEL, "prompt": question}
     body = json.dumps(payload)
     headers = {"Content-Type": "application/json", "Content-Length": str(len(body))}
@@ -55,34 +57,35 @@ def remote_retrieve(question: str):
 
 
 def build_generation_prompt(question: str, facts: list[str]) -> str:
+    """EXACT Jordan's RAG prompt from config.yaml"""
     if not facts:
-        return "Question: " + question + "\nAnswer only the entity name without punctuation."
+        return "Question: " + question + "\nAnswer:"
 
     facts_text = "\n".join(f"- {f}" for f in facts)
+    
+    # EXACT from Jordan's config.yaml
+    rag_prompt = (
+        "Your task is to extract the answer from the documents. "
+        "There is always relevant information present.\n\n"
+        "Find the entity mentioned in the question, then extract the specific "
+        "information requested about that entity from the documents.\n\n"
+        "Answer with only the exact word, name, or date needed. "
+        "Use only text that appears in the documents.\n\n"
+        "Never respond with 'None' - always extract something relevant from the text.\n\n"
+        "If multiple answers are present, separate with | (e.g., X | Y | Z)"
+    )
+    
     return (
-        "Facts:\n" + facts_text + "\n\n"
+        rag_prompt + "\n\n"
+        "Documents:\n" + facts_text + "\n\n"
         "Question: " + question + "\n"
-        "Answer with entity names only (separate multiple with |). No explanations."
+        "Answer:"
     )
 
 
 def remote_generate(user_text: str):
-    system_message = (
-        "You answer questions using ONLY the facts provided.\n\n"
-        "Rules:\n"
-        "1. Extract ONLY entities that appear in the facts\n"
-        "2. For 'what does [X] appear in', answer with the MOVIE/SHOW names, NOT [X]\n"
-        "3. Multiple answers: separate with | (e.g. 'Movie1|Movie2')\n"
-        "4. DO NOT include:\n"
-        "   - The entity in square brackets from the question\n"
-        "   - Any entities not mentioned in the facts\n"
-        "   - Any explanations or extra text\n\n"
-        "Example:\n"
-        "Facts: Before the Rain starred actors Grégoire Colin\n"
-        "Question: what does [Grégoire Colin] appear in\n"
-        "Answer: Before the Rain\n"
-        "(NOT 'Grégoire Colin' - that's the question entity)\n"
-    )
+    """EXACT Jordan's system prompt from config.yaml"""
+    system_message = "Respond to all questions directly without any explanation"
 
     payload = {
         "model": GENERATION_MODEL,
@@ -107,109 +110,97 @@ def remote_generate(user_text: str):
     return raw.strip(), latency
 
 
-def extract_entities_from_facts(facts: list[str]) -> set:
-    entities = set()
+def jordan_postprocess(llm_pred_str: str) -> str:
+    """EXACT Jordan's post-processing from run.py - NOTHING ELSE"""
     
-    for fact in facts:
-        match = re.match(r'^(.+?)\s+starred actors\s+(.+?)$', fact)
-        if match:
-            entities.add(match.group(1).strip())
-            entities.add(match.group(2).strip())
-            continue
-        
-        match = re.match(r'^(.+?)\s+belongs to\s+', fact)
-        if match:
-            entities.add(match.group(1).strip())
-            continue
-            
-        match = re.match(r'^(.+?)\s+has tag\s+(.+?)$', fact)
-        if match:
-            entities.add(match.group(1).strip())
-            continue
-        
-        for keyword in [' starred actors ', ' directed by ', ' released in ']:
-            if keyword in fact:
-                parts = fact.split(keyword)
-                for p in parts:
-                    p = p.strip()
-                    if p and len(p) > 2:
-                        entities.add(p)
+    # 1. rstrip
+    llm_pred = llm_pred_str.rstrip()
     
-    return entities
+    # 2. replace newlines with space
+    llm_pred = llm_pred.replace("\n", " ")
+    
+    # 3. split by |
+    llm_pred_list = llm_pred.split("|")
+    
+    # 4. strip each answer
+    llm_pred_list = [answer.strip() for answer in llm_pred_list]
+    
+    # 5. remove duplicates (preserving order)
+    llm_pred_list = list(dict.fromkeys(llm_pred_list))
+    
+    # Join back with |
+    return "|".join(llm_pred_list)
 
 
-def filter_relevant_facts(facts: list[str], question: str) -> list[str]:
-    match = re.search(r'\[([^\]]+)\]', question)
-    if not match:
-        return facts
-    
-    entity = match.group(1).strip().lower()
-    
-    filtered = []
-    for fact in facts:
-        if entity in fact.lower():  # Generic - δουλεύει για όλα!
-            filtered.append(fact)
-    
-    return filtered if filtered else facts
+def jordan_normalize(s: str) -> str:
+    """EXACT Jordan's normalization from evaluate.py"""
+    s = s.strip().lower()
+    s = s.translate(str.maketrans('', '', string.punctuation))
+    s = re.sub(r'\s+', ' ', s)
+    return s
 
 
-def normalize_answer(raw_answer: str, facts: list[str], question: str) -> str:
-    if not raw_answer.strip():
-        return ""
+def jordan_to_set(items_str: str):
+    """EXACT Jordan's to_set from evaluate.py"""
+    if not items_str:
+        return set()
+    items = items_str.split("|")
+    return {jordan_normalize(x) for x in items if x.strip()}
+
+
+def jordan_metrics(gold: str, pred: str) -> dict:
+    """EXACT Jordan's metrics from evaluate.py"""
     
-    question_entity = None
-    match = re.search(r'\[([^\]]+)\]', question)
-    if match:
-        question_entity = match.group(1).strip().lower()
+    gset = jordan_to_set(gold)
+    pset = jordan_to_set(pred)
     
-    valid_entities = extract_entities_from_facts(facts)
-    valid_entities_lower = {e.lower() for e in valid_entities}
+    # Top-1 accuracy
+    pred_parts = [p.strip() for p in pred.split("|") if p.strip()]
+    top_pred = jordan_normalize(pred_parts[0]) if pred_parts else None
+    top1_match = top_pred in gset if top_pred else False
     
-    raw = raw_answer.strip()
-    tmp = raw.replace("|", "\n")
-    parts = [p.strip() for p in tmp.splitlines() if p.strip()]
+    # Exact Match
+    exact_match = gset == pset
     
-    filtered = []
-    for p in parts:
-        p_lower = p.lower()
-        
-        if question_entity and p_lower == question_entity:
-            continue
-        
-        if p_lower in valid_entities_lower:
-            for e in valid_entities:
-                if e.lower() == p_lower:
-                    filtered.append(e)
-                    break
+    # Precision, Recall, F1
+    tp = len(gset & pset)
+    precision = tp / len(pset) if pset else 0.0
+    recall = tp / len(gset) if gset else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
     
-    seen = set()
-    unique = []
-    for e in filtered:
-        if e not in seen:
-            seen.add(e)
-            unique.append(e)
-    
-    if not unique:
-        return ""
-    if len(unique) == 1:
-        return unique[0]
-    return "|".join(unique)
+    return {
+        "top1_match": top1_match,
+        "exact_match": exact_match,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "tp": tp,
+        "pred_count": len(pset),
+        "gold_count": len(gset)
+    }
 
 
 def run_rag(question: str):
+    """Pure Jordan RAG pipeline"""
+    # 1. Retrieval
     facts, t_retr, raw_retr = remote_retrieve(question)
-    facts = filter_relevant_facts(facts, question)
+    
+    # 2. Build prompt (NO filtering - give all facts to LLM)
     user_msg = build_generation_prompt(question, facts)
+    
+    # 3. Generation
     raw_answer, t_gen = remote_generate(user_msg)
-    final_answer = normalize_answer(raw_answer, facts, question)
+    
+    # 4. Jordan's post-processing ONLY
+    processed_answer = jordan_postprocess(raw_answer)
+    
     total_latency = t_retr + t_gen
 
     return {
         "question": question,
         "facts": facts,
-        "prompt": user_msg,
-        "answer": final_answer,
         "raw_answer": raw_answer,
+        "processed_answer": processed_answer,
         "retrieval_latency": t_retr,
         "generation_latency": t_gen,
         "total_latency": total_latency,
@@ -218,7 +209,7 @@ def run_rag(question: str):
 
 
 # ============================================================================
-# EVALUATION FUNCTIONS
+# EVALUATION
 # ============================================================================
 
 def load_jsonl(path):
@@ -231,6 +222,7 @@ def load_jsonl(path):
 
 
 def normalize_gold_answer(ans):
+    """Handle MetaQA format"""
     if isinstance(ans, list) and ans:
         return ans[0].strip()
     if isinstance(ans, str):
@@ -238,101 +230,202 @@ def normalize_gold_answer(ans):
     return ""
 
 
-def compare_prediction(pred: str, gold: str) -> bool:
-    if not pred or not gold:
-        return pred == gold
+def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
+    """
+    Pure Jordan evaluation, with optional auto-resume.
     
-    pred = pred.strip().lower()
-    gold = gold.strip().lower()
-    
-    pred_parts = set(p.strip() for p in pred.split("|") if p.strip())
-    gold_parts = set(g.strip() for g in gold.split("|") if g.strip())
-    
-    return pred_parts == gold_parts
-
-
-def evaluate(jsonl_path: str, output_path: str = None):
+    - Αν resume=True και υπάρχει ήδη output αρχείο:
+      * Διαβάζει τα ήδη αποθηκευμένα αποτελέσματα
+      * Ξαναϋπολογίζει τα metrics για αυτά
+      * Συνεχίζει μόνο για τα δείγματα (id) που λείπουν.
+    - Αν resume=False ή δεν υπάρχει αρχείο:
+      * Ξεκινάει από την αρχή και κάνει overwrite.
+    """
     jsonl_path = Path(jsonl_path)
     
-    # Create results directory
     results_dir = Path("rag_results")
     results_dir.mkdir(exist_ok=True)
     
-    # Auto-generate output filename if not provided
     if output_path is None:
         model_name = GENERATION_MODEL.replace(":", "_").replace(".", "_")
-        output_path = results_dir / f"metaqa_{model_name}.jsonl"
+        output_path = results_dir / f"metaqa_{model_name}_pure_jordan.jsonl"
     else:
         output_path = Path(output_path)
 
+    # Αν υπάρχει αρχείο και θέλουμε resume, θα το χρησιμοποιήσουμε
+    resume_mode = resume and output_path.exists()
+
     total = 0
-    correct = 0
+    top1_correct = 0
+    exact_matches = 0
+    
+    macro_f1s = []
+    macro_precisions = []
+    macro_recalls = []
+    
+    total_tp = 0
+    total_pred = 0
+    total_gold = 0
+
+    processed_ids = set()
+
+    # ===========================
+    # 1) Αν resume_mode, φόρτωσε ήδη υπάρχοντα αποτελέσματα
+    # ===========================
+    if resume_mode:
+        print(f"\n[RESUME] Loading existing results from {output_path}")
+        with open(output_path, "r", encoding="utf-8") as fin:
+            for line in fin:
+                line = line.strip()
+                if not line:
+                    continue
+                obj = json.loads(line)
+                qid_prev = obj.get("id")
+                processed_ids.add(qid_prev)
+
+                gold_prev_raw = obj.get("gold_answer")
+                gold_prev = normalize_gold_answer(gold_prev_raw)
+                pred_prev = obj.get("prediction", "")
+
+                metrics_prev = jordan_metrics(gold_prev, pred_prev)
+
+                total += 1
+                if metrics_prev["top1_match"]:
+                    top1_correct += 1
+                if metrics_prev["exact_match"]:
+                    exact_matches += 1
+
+                macro_f1s.append(metrics_prev["f1"])
+                macro_precisions.append(metrics_prev["precision"])
+                macro_recalls.append(metrics_prev["recall"])
+
+                total_tp += metrics_prev["tp"]
+                total_pred += metrics_prev["pred_count"]
+                total_gold += metrics_prev["gold_count"]
+
+        print(f"[RESUME] Found {len(processed_ids)} existing samples. Will skip these.\n")
+
     t_start = perf_counter()
 
-    print(f"\n{'='*60}")
-    print(f"RAG EVALUATION: {GENERATION_MODEL}")
-    print(f"{'='*60}\n")
+    print(f"\n{'='*70}")
+    print(f"PURE JORDAN REPLICATION: {GENERATION_MODEL}")
+    print(f"{'='*70}")
+    print("Prompts: EXACT Jordan (config.yaml)")
+    print("Post-processing: EXACT Jordan (run.py)")
+    print("Metrics: EXACT Jordan (evaluate.py)")
+    print("NO modifications, NO tricks, NO filtering")
+    if resume_mode:
+        print(f"Mode: RESUME (append remaining samples to {output_path})")
+    else:
+        print(f"Mode: FRESH RUN (overwrite {output_path})")
+    print(f"{'='*70}\n")
 
-    with open(output_path, "w", encoding="utf-8") as fout:
+    # Αν κάνουμε resume, ανοίγουμε σε append. Αλλιώς overwrite.
+    mode = "a" if resume_mode else "w"
+    with open(output_path, mode, encoding="utf-8") as fout:
         for sample in load_jsonl(jsonl_path):
             qid = sample.get("id")
+
+            # Αν έχουμε ήδη αυτό το id σε προηγούμενο run, κάνε skip
+            if resume_mode and qid in processed_ids:
+                continue
+
             question = sample.get("question", "")
             gold_raw = sample.get("answer")
             gold = normalize_gold_answer(gold_raw)
 
             res = run_rag(question)
-            pred = res["answer"]
-
-            ok = compare_prediction(pred, gold)
+            
+            # Jordan's metrics
+            metrics = jordan_metrics(gold, res["processed_answer"])
+            
             total += 1
-            if ok:
-                correct += 1
+            if metrics["top1_match"]:
+                top1_correct += 1
+            if metrics["exact_match"]:
+                exact_matches += 1
+            
+            macro_f1s.append(metrics["f1"])
+            macro_precisions.append(metrics["precision"])
+            macro_recalls.append(metrics["recall"])
+            
+            total_tp += metrics["tp"]
+            total_pred += metrics["pred_count"]
+            total_gold += metrics["gold_count"]
 
             out_obj = {
                 "id": qid,
                 "question": question,
                 "gold_answer": gold_raw,
-                "gold_norm": gold,
-                "prediction": pred,
+                "prediction": res["processed_answer"],
+                "raw_answer": res["raw_answer"],
                 "retrieval_latency": res["retrieval_latency"],
                 "generation_latency": res["generation_latency"],
                 "total_latency": res["total_latency"],
-                "raw_answer": res["raw_answer"],
                 "raw_retrieval": res["raw_retrieval"],
-                "correct": ok,
+                "top1_match": metrics["top1_match"],
+                "exact_match": metrics["exact_match"],
+                "precision": metrics["precision"],
+                "recall": metrics["recall"],
+                "f1": metrics["f1"],
             }
             fout.write(json.dumps(out_obj) + "\n")
+            fout.flush()
 
             if total % 10 == 0:
-                acc = correct / total * 100
-                print(f"[{total}] accuracy: {acc:.2f}% | last: {'✓' if ok else '✗'} {question[:50]}")
+                acc = top1_correct / total * 100
+                em = exact_matches / total * 100
+                avg_f1 = sum(macro_f1s) / len(macro_f1s)
+                print(f"[{total}] Acc: {acc:.2f}% | EM: {em:.2f}% | F1: {avg_f1:.3f} | {'✓' if metrics['top1_match'] else '✗'}")
 
-            # Sleep to prevent endpoint overload
             sleep(SLEEP_BETWEEN_REQUESTS)
 
     t_end = perf_counter()
-    acc = correct / total * 100 if total > 0 else 0.0
+    
+    # Final metrics (Jordan's format)
+    accuracy = top1_correct / total if total else 0.0
+    exact_match_rate = exact_matches / total if total else 0.0
+    
+    macro_f1 = sum(macro_f1s) / len(macro_f1s) if macro_f1s else 0.0
+    macro_p = sum(macro_precisions) / len(macro_precisions) if macro_precisions else 0.0
+    macro_r = sum(macro_recalls) / len(macro_recalls) if macro_recalls else 0.0
+    
+    micro_p = total_tp / total_pred if total_pred else 0.0
+    micro_r = total_tp / total_gold if total_gold else 0.0
+    micro_f1 = 2 * micro_p * micro_r / (micro_p + micro_r) if (micro_p + micro_r) else 0.0
 
-    print(f"\n{'='*60}")
-    print("RAG EVALUATION COMPLETE")
-    print(f"{'='*60}")
+    print(f"\n{'='*70}")
+    print("PURE JORDAN REPLICATION - RESULTS")
+    print(f"{'='*70}")
     print(f"Model: {GENERATION_MODEL}")
     print(f"Dataset: {jsonl_path}")
-    print(f"Total samples: {total}")
-    print(f"Correct: {correct}")
-    print(f"Accuracy: {acc:.2f}%")
-    print(f"Total time: {t_end - t_start:.2f}s")
-    print(f"Avg latency: {(t_end - t_start) / total:.2f}s per sample")
-    print(f"Results saved: {output_path}")
-    print(f"{'='*60}\n")
+    print(f"Total samples (including resumed): {total}")
+    print(f"\nFinal Scores:")
+    print(f"Accuracy (top-1 match):       {accuracy:.4f}")
+    print(f"Exact Match:                  {exact_match_rate:.4f}")
+    print(f"Macro Precision:              {macro_p:.4f}")
+    print(f"Macro Recall:                 {macro_r:.4f}")
+    print(f"Macro F1:                     {macro_f1:.4f}")
+    print(f"Micro Precision:              {micro_p:.4f}")
+    print(f"Micro Recall:                 {micro_r:.4f}")
+    print(f"Micro F1:                     {micro_f1:.4f}")
+    print(f"\nTime: {t_end - t_start:.2f}s ({(t_end - t_start)/60:.1f} min)")
+    print(f"Results: {output_path}")
+    print(f"{'='*70}\n")
     
-    return {"accuracy": acc, "correct": correct, "total": total, "time": t_end - t_start}
+    return {
+        "accuracy": accuracy,
+        "exact_match": exact_match_rate,
+        "macro_f1": macro_f1,
+        "macro_precision": macro_p,
+        "macro_recall": macro_r,
+        "micro_f1": micro_f1,
+        "micro_precision": micro_p,
+        "micro_recall": micro_r,
+        "total": total,
+        "time": t_end - t_start
+    }
 
-
-# ============================================================================
-# MAIN
-# ============================================================================
 
 if __name__ == "__main__":
-    # Run evaluation on MetaQA 1-hop
     evaluate("data/metaqa_1hop_only.jsonl")
