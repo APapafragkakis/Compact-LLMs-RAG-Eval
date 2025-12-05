@@ -222,7 +222,7 @@ def evaluate(jsonl_path: str, output_path: str = None):
     jsonl_path = Path(jsonl_path)
     
     # Αποθήκευση σε ξεχωριστό φάκελο για baseline
-    results_dir = Path("simple_results")
+    results_dir = Path("baseline_results")
     results_dir.mkdir(exist_ok=True)
     
     # Auto-generate output filename if not provided
