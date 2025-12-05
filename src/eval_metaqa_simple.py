@@ -1,5 +1,5 @@
 # eval_metaqa_simple.py - No-RAG Baseline Evaluation for MetaQA
-# ΤΩΡΑ: ίδιο schema & metrics format με eval_metaqa_rag.py
+# Schema & metrics aligned with eval_metaqa_rag.py
 
 import http.client
 import json
@@ -15,8 +15,7 @@ import string
 HOST = "demos.isl.ics.forth.gr"
 GENERATE_ENDPOINT = "/SemanticRAG/generate"
 
-GENERATION_MODEL = "llama3.1:8b"  # Change this to test different models
-
+GENERATION_MODEL = "llama3.1:8b"  # θα το αλλάζει το runner
 SLEEP_BETWEEN_REQUESTS = 0.7  # seconds - prevent endpoint overload
 
 
@@ -73,8 +72,8 @@ def generate_baseline(question: str):
 
 def normalize_baseline_answer(raw_answer: str, question: str) -> str:
     """
-    Normalize LLM output (simple baseline-specific διαδικασία).
-    Στο τέλος όμως η αξιολόγηση γίνεται με τα ίδια Jordan metrics όπως στο RAG.
+    Normalize LLM output (baseline-side), αλλά η αξιολόγηση είναι Jordan-style
+    όπως και στο RAG.
     """
     if not raw_answer.strip():
         return ""
@@ -95,7 +94,6 @@ def normalize_baseline_answer(raw_answer: str, question: str) -> str:
     for p in parts:
         p_lower = p.lower()
         
-        # Skip if it's the question entity
         if question_entity and p_lower == question_entity:
             continue
         
@@ -133,7 +131,7 @@ def run_baseline(question: str):
 
 
 # ============================================================================
-# SHARED HELPERS (όμοια λογική με eval_metaqa_rag)
+# SHARED HELPERS (ίδια λογική με eval_metaqa_rag)
 # ============================================================================
 
 def load_jsonl(path):
@@ -230,7 +228,6 @@ def evaluate(jsonl_path: str, output_path: str = None):
     # Auto-generate output filename if not provided
     if output_path is None:
         model_name = GENERATION_MODEL.replace(":", "_").replace(".", "_")
-        # παρόμοια ονομασία με του RAG, αλλά σε simple_results
         output_path = results_dir / f"metaqa_{model_name}_baseline_no_rag.jsonl"
     else:
         output_path = Path(output_path)
@@ -249,14 +246,14 @@ def evaluate(jsonl_path: str, output_path: str = None):
 
     t_start = perf_counter()
 
-    print(f"\n{'='*70}")
+    print("\n" + "="*70)
     print(f"BASELINE (NO-RAG) EVALUATION: {GENERATION_MODEL}")
-    print(f"{'='*70}")
+    print("="*70)
     print("Metrics format: Jordan-style (same as RAG)")
     print("JSON schema: matched to eval_metaqa_rag output")
     print(f"Dataset: {jsonl_path}")
     print(f"Results file: {output_path}")
-    print(f"{'='*70}\n")
+    print("="*70 + "\n")
 
     with open(output_path, "w", encoding="utf-8") as fout:
         for sample in load_jsonl(jsonl_path):
@@ -305,9 +302,9 @@ def evaluate(jsonl_path: str, output_path: str = None):
             fout.write(json.dumps(out_obj) + "\n")
 
             if total % 10 == 0:
-                acc = top1_correct / total * 100
-                em = exact_matches / total * 100
-                avg_f1 = sum(macro_f1s) / len(macro_f1s)
+                acc = top1_correct / total * 100 if total else 0.0
+                em = exact_matches / total * 100 if total else 0.0
+                avg_f1 = sum(macro_f1s) / len(macro_f1s) if macro_f1s else 0.0
                 print(f"[{total}] Acc: {acc:.2f}% | EM: {em:.2f}% | F1: {avg_f1:.3f} | "
                       f"{'✓' if metrics['top1_match'] else '✗'} {question[:50]}")
 
@@ -328,13 +325,13 @@ def evaluate(jsonl_path: str, output_path: str = None):
     micro_r = total_tp / total_gold if total_gold else 0.0
     micro_f1 = 2 * micro_p * micro_r / (micro_p + micro_r) if (micro_p + micro_r) else 0.0
 
-    print(f"\n{'='*70}")
+    print("\n" + "="*70)
     print("BASELINE (NO-RAG) EVALUATION COMPLETE")
-    print(f"{'='*70}")
+    print("="*70)
     print(f"Model: {GENERATION_MODEL}")
     print(f"Dataset: {jsonl_path}")
     print(f"Total samples: {total}")
-    print(f"\nFinal Scores:")
+    print("\nFinal Scores:")
     print(f"Accuracy (top-1 match):       {accuracy:.4f}")
     print(f"Exact Match:                  {exact_match_rate:.4f}")
     print(f"Macro Precision:              {macro_p:.4f}")
@@ -345,7 +342,7 @@ def evaluate(jsonl_path: str, output_path: str = None):
     print(f"Micro F1:                     {micro_f1:.4f}")
     print(f"\nTime: {t_end - t_start:.2f}s ({(t_end - t_start)/60:.1f} min)")
     print(f"Results: {output_path}")
-    print(f"{'='*70}\n")
+    print("="*70 + "\n")
     
     return {
         "accuracy": accuracy,
