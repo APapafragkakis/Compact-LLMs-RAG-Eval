@@ -1,10 +1,12 @@
 # eval_metaqa_simple.py - No-RAG Baseline Evaluation for MetaQA
+# ΤΩΡΑ: ίδιο schema & metrics format με eval_metaqa_rag.py
 
 import http.client
 import json
 from time import perf_counter, sleep
 from pathlib import Path
 import re
+import string
 
 # ============================================================================
 # CONFIGURATION
@@ -71,7 +73,8 @@ def generate_baseline(question: str):
 
 def normalize_baseline_answer(raw_answer: str, question: str) -> str:
     """
-    Normalize LLM output - same logic as RAG version for fair comparison
+    Normalize LLM output (simple baseline-specific διαδικασία).
+    Στο τέλος όμως η αξιολόγηση γίνεται με τα ίδια Jordan metrics όπως στο RAG.
     """
     if not raw_answer.strip():
         return ""
@@ -130,7 +133,7 @@ def run_baseline(question: str):
 
 
 # ============================================================================
-# EVALUATION FUNCTIONS
+# SHARED HELPERS (όμοια λογική με eval_metaqa_rag)
 # ============================================================================
 
 def load_jsonl(path):
@@ -143,6 +146,7 @@ def load_jsonl(path):
 
 
 def normalize_gold_answer(ans):
+    """Handle MetaQA format (ίδιο με RAG)"""
     if isinstance(ans, list) and ans:
         return ans[0].strip()
     if isinstance(ans, str):
@@ -150,40 +154,109 @@ def normalize_gold_answer(ans):
     return ""
 
 
-def compare_prediction(pred: str, gold: str) -> bool:
-    if not pred or not gold:
-        return pred == gold
-    
-    pred = pred.strip().lower()
-    gold = gold.strip().lower()
-    
-    pred_parts = set(p.strip() for p in pred.split("|") if p.strip())
-    gold_parts = set(g.strip() for g in gold.split("|") if g.strip())
-    
-    return pred_parts == gold_parts
+# ===== Jordan-style normalization & metrics (ίδια μορφή με eval_metaqa_rag) =====
 
+def jordan_normalize(s: str) -> str:
+    """EXACT Jordan-style normalization"""
+    s = s.strip().lower()
+    s = s.translate(str.maketrans('', '', string.punctuation))
+    s = re.sub(r'\s+', ' ', s)
+    return s
+
+
+def jordan_to_set(items_str: str):
+    """Jordan's to_set"""
+    if not items_str:
+        return set()
+    items = items_str.split("|")
+    return {jordan_normalize(x) for x in items if x.strip()}
+
+
+def jordan_metrics(gold: str, pred: str) -> dict:
+    """
+    Jordan-style metrics (ίδιο format με RAG):
+    - top1_match
+    - exact_match
+    - precision, recall, f1
+    - counts
+    """
+    gset = jordan_to_set(gold)
+    pset = jordan_to_set(pred)
+    
+    # Top-1 accuracy
+    pred_parts = [p.strip() for p in pred.split("|") if p.strip()]
+    top_pred = jordan_normalize(pred_parts[0]) if pred_parts else None
+    top1_match = top_pred in gset if top_pred else False
+    
+    # Exact Match
+    exact_match = gset == pset
+    
+    # Precision, Recall, F1
+    tp = len(gset & pset)
+    precision = tp / len(pset) if pset else 0.0
+    recall = tp / len(gset) if gset else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
+    
+    return {
+        "top1_match": top1_match,
+        "exact_match": exact_match,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "tp": tp,
+        "pred_count": len(pset),
+        "gold_count": len(gset)
+    }
+
+
+# ============================================================================
+# EVALUATION (ίδια «μορφή» με eval_metaqa_rag.evaluate)
+# ============================================================================
 
 def evaluate(jsonl_path: str, output_path: str = None):
+    """
+    Baseline (NO-RAG) evaluation με:
+    - Ίδιο JSON schema ανά sample με το RAG (id, question, gold_answer, prediction,
+      raw_answer, retrieval_latency, generation_latency, total_latency, raw_retrieval,
+      top1_match, exact_match, precision, recall, f1)
+    - Ίδιο aggregate metrics dict (accuracy, exact_match, macro/micro κτλ)
+    """
     jsonl_path = Path(jsonl_path)
     
-    # Create results directory for baseline (no-RAG) results
+    # Αποθήκευση σε ξεχωριστό φάκελο για baseline
     results_dir = Path("simple_results")
     results_dir.mkdir(exist_ok=True)
     
     # Auto-generate output filename if not provided
     if output_path is None:
         model_name = GENERATION_MODEL.replace(":", "_").replace(".", "_")
-        output_path = results_dir / f"metaqa_{model_name}.jsonl"
+        # παρόμοια ονομασία με του RAG, αλλά σε simple_results
+        output_path = results_dir / f"metaqa_{model_name}_baseline_no_rag.jsonl"
     else:
         output_path = Path(output_path)
 
     total = 0
-    correct = 0
+    top1_correct = 0
+    exact_matches = 0
+    
+    macro_f1s = []
+    macro_precisions = []
+    macro_recalls = []
+    
+    total_tp = 0
+    total_pred = 0
+    total_gold = 0
+
     t_start = perf_counter()
 
-    print(f"\n{'='*60}")
-    print(f"BASELINE EVALUATION (NO RAG): {GENERATION_MODEL}")
-    print(f"{'='*60}\n")
+    print(f"\n{'='*70}")
+    print(f"BASELINE (NO-RAG) EVALUATION: {GENERATION_MODEL}")
+    print(f"{'='*70}")
+    print("Metrics format: Jordan-style (same as RAG)")
+    print("JSON schema: matched to eval_metaqa_rag output")
+    print(f"Dataset: {jsonl_path}")
+    print(f"Results file: {output_path}")
+    print(f"{'='*70}\n")
 
     with open(output_path, "w", encoding="utf-8") as fout:
         for sample in load_jsonl(jsonl_path):
@@ -195,50 +268,97 @@ def evaluate(jsonl_path: str, output_path: str = None):
             res = run_baseline(question)
             pred = res["answer"]
 
-            ok = compare_prediction(pred, gold)
-            total += 1
-            if ok:
-                correct += 1
+            # Jordan-style metrics
+            metrics = jordan_metrics(gold, pred)
 
+            total += 1
+            if metrics["top1_match"]:
+                top1_correct += 1
+            if metrics["exact_match"]:
+                exact_matches += 1
+            
+            macro_f1s.append(metrics["f1"])
+            macro_precisions.append(metrics["precision"])
+            macro_recalls.append(metrics["recall"])
+            
+            total_tp += metrics["tp"]
+            total_pred += metrics["pred_count"]
+            total_gold += metrics["gold_count"]
+
+            # ===== per-sample JSON object - ΙΔΙΑ ΜΟΡΦΗ ΜΕ RAG =====
             out_obj = {
                 "id": qid,
                 "question": question,
                 "gold_answer": gold_raw,
-                "gold_norm": gold,
                 "prediction": pred,
+                "raw_answer": res["raw_answer"],
+                "retrieval_latency": 0.0,               # baseline: no retrieval
                 "generation_latency": res["generation_latency"],
                 "total_latency": res["total_latency"],
-                "raw_answer": res["raw_answer"],
-                "correct": ok,
-                "method": "baseline_no_rag",
+                "raw_retrieval": None,                  # baseline: no retrieval payload
+                "top1_match": metrics["top1_match"],
+                "exact_match": metrics["exact_match"],
+                "precision": metrics["precision"],
+                "recall": metrics["recall"],
+                "f1": metrics["f1"],
             }
             fout.write(json.dumps(out_obj) + "\n")
 
             if total % 10 == 0:
-                acc = correct / total * 100
-                print(f"[{total}] accuracy: {acc:.2f}% | last: {'✓' if ok else '✗'} {question[:50]}")
+                acc = top1_correct / total * 100
+                em = exact_matches / total * 100
+                avg_f1 = sum(macro_f1s) / len(macro_f1s)
+                print(f"[{total}] Acc: {acc:.2f}% | EM: {em:.2f}% | F1: {avg_f1:.3f} | "
+                      f"{'✓' if metrics['top1_match'] else '✗'} {question[:50]}")
 
             # Sleep to prevent endpoint overload
             sleep(SLEEP_BETWEEN_REQUESTS)
 
     t_end = perf_counter()
-    acc = correct / total * 100 if total > 0 else 0.0
+    
+    # ===== Final Jordan-style aggregate metrics (όπως στο RAG) =====
+    accuracy = top1_correct / total if total else 0.0
+    exact_match_rate = exact_matches / total if total else 0.0
+    
+    macro_f1 = sum(macro_f1s) / len(macro_f1s) if macro_f1s else 0.0
+    macro_p = sum(macro_precisions) / len(macro_precisions) if macro_precisions else 0.0
+    macro_r = sum(macro_recalls) / len(macro_recalls) if macro_recalls else 0.0
+    
+    micro_p = total_tp / total_pred if total_pred else 0.0
+    micro_r = total_tp / total_gold if total_gold else 0.0
+    micro_f1 = 2 * micro_p * micro_r / (micro_p + micro_r) if (micro_p + micro_r) else 0.0
 
-    print(f"\n{'='*60}")
-    print("BASELINE EVALUATION COMPLETE")
-    print(f"{'='*60}")
+    print(f"\n{'='*70}")
+    print("BASELINE (NO-RAG) EVALUATION COMPLETE")
+    print(f"{'='*70}")
     print(f"Model: {GENERATION_MODEL}")
-    print(f"Method: Direct LLM (NO RAG)")
     print(f"Dataset: {jsonl_path}")
     print(f"Total samples: {total}")
-    print(f"Correct: {correct}")
-    print(f"Accuracy: {acc:.2f}%")
-    print(f"Total time: {t_end - t_start:.2f}s")
-    print(f"Avg latency: {(t_end - t_start) / total:.2f}s per sample")
-    print(f"Results saved: {output_path}")
-    print(f"{'='*60}\n")
+    print(f"\nFinal Scores:")
+    print(f"Accuracy (top-1 match):       {accuracy:.4f}")
+    print(f"Exact Match:                  {exact_match_rate:.4f}")
+    print(f"Macro Precision:              {macro_p:.4f}")
+    print(f"Macro Recall:                 {macro_r:.4f}")
+    print(f"Macro F1:                     {macro_f1:.4f}")
+    print(f"Micro Precision:              {micro_p:.4f}")
+    print(f"Micro Recall:                 {micro_r:.4f}")
+    print(f"Micro F1:                     {micro_f1:.4f}")
+    print(f"\nTime: {t_end - t_start:.2f}s ({(t_end - t_start)/60:.1f} min)")
+    print(f"Results: {output_path}")
+    print(f"{'='*70}\n")
     
-    return {"accuracy": acc, "correct": correct, "total": total, "time": t_end - t_start}
+    return {
+        "accuracy": accuracy,
+        "exact_match": exact_match_rate,
+        "macro_f1": macro_f1,
+        "macro_precision": macro_p,
+        "macro_recall": macro_r,
+        "micro_f1": micro_f1,
+        "micro_precision": micro_p,
+        "micro_recall": micro_r,
+        "total": total,
+        "time": t_end - t_start
+    }
 
 
 # ============================================================================
