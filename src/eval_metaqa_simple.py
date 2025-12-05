@@ -1,5 +1,5 @@
 # eval_metaqa_simple.py - No-RAG Baseline Evaluation for MetaQA
-# Schema & metrics aligned with eval_metaqa_rag.py
+# Schema & metrics aligned with eval_metaqa_rag.py, with auto-resume per sample
 
 import http.client
 import json
@@ -8,9 +8,9 @@ from pathlib import Path
 import re
 import string
 
-# ============================================================================
+# ====================================================================
 # CONFIGURATION
-# ============================================================================
+# ====================================================================
 
 HOST = "demos.isl.ics.forth.gr"
 GENERATE_ENDPOINT = "/SemanticRAG/generate"
@@ -19,9 +19,9 @@ GENERATION_MODEL = "llama3.1:8b"  # θα το αλλάζει το runner
 SLEEP_BETWEEN_REQUESTS = 0.7  # seconds - prevent endpoint overload
 
 
-# ============================================================================
+# ====================================================================
 # BASELINE GENERATION (NO RAG)
-# ============================================================================
+# ====================================================================
 
 def generate_baseline(question: str):
     """
@@ -130,9 +130,9 @@ def run_baseline(question: str):
     }
 
 
-# ============================================================================
+# ====================================================================
 # SHARED HELPERS (ίδια λογική με eval_metaqa_rag)
-# ============================================================================
+# ====================================================================
 
 def load_jsonl(path):
     with open(path, "r", encoding="utf-8") as f:
@@ -207,17 +207,19 @@ def jordan_metrics(gold: str, pred: str) -> dict:
     }
 
 
-# ============================================================================
-# EVALUATION (ίδια «μορφή» με eval_metaqa_rag.evaluate)
-# ============================================================================
+# ====================================================================
+# EVALUATION (με auto-resume όπως eval_metaqa_rag)
+# ====================================================================
 
-def evaluate(jsonl_path: str, output_path: str = None):
+def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
     """
     Baseline (NO-RAG) evaluation με:
     - Ίδιο JSON schema ανά sample με το RAG (id, question, gold_answer, prediction,
       raw_answer, retrieval_latency, generation_latency, total_latency, raw_retrieval,
       top1_match, exact_match, precision, recall, f1)
     - Ίδιο aggregate metrics dict (accuracy, exact_match, macro/micro κτλ)
+    - Auto-resume: αν υπάρχει ήδη αρχείο, διαβάζει τα υπάρχοντα samples,
+      ξαναϋπολογίζει metrics και συνεχίζει μόνο για όσα ids λείπουν.
     """
     jsonl_path = Path(jsonl_path)
     
@@ -232,6 +234,9 @@ def evaluate(jsonl_path: str, output_path: str = None):
     else:
         output_path = Path(output_path)
 
+    # Resume mode όπως στο eval_metaqa_rag
+    resume_mode = resume and output_path.exists()
+
     total = 0
     top1_correct = 0
     exact_matches = 0
@@ -244,6 +249,44 @@ def evaluate(jsonl_path: str, output_path: str = None):
     total_pred = 0
     total_gold = 0
 
+    processed_ids = set()
+
+    # ------------------------------------------------------------
+    # 1) Αν resume_mode, φόρτωσε ήδη υπάρχοντα αποτελέσματα
+    # ------------------------------------------------------------
+    if resume_mode:
+        print(f"\n[RESUME] Loading existing baseline results from {output_path}")
+        with open(output_path, "r", encoding="utf-8") as fin:
+            for line in fin:
+                line = line.strip()
+                if not line:
+                    continue
+                obj = json.loads(line)
+                qid_prev = obj.get("id")
+                processed_ids.add(qid_prev)
+
+                gold_prev_raw = obj.get("gold_answer")
+                gold_prev = normalize_gold_answer(gold_prev_raw)
+                pred_prev = obj.get("prediction", "")
+
+                metrics_prev = jordan_metrics(gold_prev, pred_prev)
+
+                total += 1
+                if metrics_prev["top1_match"]:
+                    top1_correct += 1
+                if metrics_prev["exact_match"]:
+                    exact_matches += 1
+
+                macro_f1s.append(metrics_prev["f1"])
+                macro_precisions.append(metrics_prev["precision"])
+                macro_recalls.append(metrics_prev["recall"])
+
+                total_tp += metrics_prev["tp"]
+                total_pred += metrics_prev["pred_count"]
+                total_gold += metrics_prev["gold_count"]
+
+        print(f"[RESUME] Found {len(processed_ids)} existing samples. Will skip these.\n")
+
     t_start = perf_counter()
 
     print("\n" + "="*70)
@@ -253,11 +296,22 @@ def evaluate(jsonl_path: str, output_path: str = None):
     print("JSON schema: matched to eval_metaqa_rag output")
     print(f"Dataset: {jsonl_path}")
     print(f"Results file: {output_path}")
+    if resume_mode:
+        print("Mode: RESUME (append remaining samples)")
+    else:
+        print("Mode: FRESH RUN (overwrite existing results)")
     print("="*70 + "\n")
 
-    with open(output_path, "w", encoding="utf-8") as fout:
+    mode = "a" if resume_mode else "w"
+
+    with open(output_path, mode, encoding="utf-8") as fout:
         for sample in load_jsonl(jsonl_path):
             qid = sample.get("id")
+
+            # Αν έχει ήδη γίνει σε προηγούμενο run, skip
+            if resume_mode and qid in processed_ids:
+                continue
+
             question = sample.get("question", "")
             gold_raw = sample.get("answer")
             gold = normalize_gold_answer(gold_raw)
@@ -300,13 +354,17 @@ def evaluate(jsonl_path: str, output_path: str = None):
                 "f1": metrics["f1"],
             }
             fout.write(json.dumps(out_obj) + "\n")
+            fout.flush()
 
             if total % 10 == 0:
                 acc = top1_correct / total * 100 if total else 0.0
                 em = exact_matches / total * 100 if total else 0.0
                 avg_f1 = sum(macro_f1s) / len(macro_f1s) if macro_f1s else 0.0
-                print(f"[{total}] Acc: {acc:.2f}% | EM: {em:.2f}% | F1: {avg_f1:.3f} | "
-                      f"{'✓' if metrics['top1_match'] else '✗'} {question[:50]}")
+                print(
+                    f"[{total}] Acc: {acc:.2f}% | EM: {em:.2f}% | "
+                    f"F1: {avg_f1:.3f} | {'✓' if metrics['top1_match'] else '✗'} "
+                    f"{question[:50]}"
+                )
 
             # Sleep to prevent endpoint overload
             sleep(SLEEP_BETWEEN_REQUESTS)
@@ -330,7 +388,7 @@ def evaluate(jsonl_path: str, output_path: str = None):
     print("="*70)
     print(f"Model: {GENERATION_MODEL}")
     print(f"Dataset: {jsonl_path}")
-    print(f"Total samples: {total}")
+    print(f"Total samples (including resumed): {total}")
     print("\nFinal Scores:")
     print(f"Accuracy (top-1 match):       {accuracy:.4f}")
     print(f"Exact Match:                  {exact_match_rate:.4f}")
@@ -358,10 +416,10 @@ def evaluate(jsonl_path: str, output_path: str = None):
     }
 
 
-# ============================================================================
+# ====================================================================
 # MAIN
-# ============================================================================
+# ====================================================================
 
 if __name__ == "__main__":
-    # Run baseline evaluation on MetaQA 1-hop
-    evaluate("data/metaqa_1hop_only.jsonl")
+    # Run baseline evaluation on MetaQA 1-hop (με auto-resume στον φάκελο baseline_results)
+    evaluate("data/metaqa_1hop_only.jsonl", resume=True)

@@ -1,4 +1,5 @@
 # run_baseline_only.py - Τρέχει ΜΟΝΟ Baseline (no-RAG) για όλα τα models
+# Με μοντέλο-level resume (summary) και sample-level resume από eval_metaqa_simple
 
 import json
 from pathlib import Path
@@ -6,9 +7,9 @@ from time import perf_counter, sleep
 import importlib
 import sys
 
-# ============================================================================
+# ====================================================================
 # CONFIGURATION
-# ============================================================================
+# ====================================================================
 
 MODELS = [
     "llama3.2:1b",
@@ -23,9 +24,9 @@ DATASET = "data/metaqa_1hop_only.jsonl"
 SLEEP_BETWEEN_MODELS = 10  # seconds
 
 
-# ============================================================================
+# ====================================================================
 # RUN BASELINE EVALUATIONS ONLY
-# ============================================================================
+# ====================================================================
 
 def run_all_baseline():
     print("\n" + "="*70)
@@ -37,12 +38,12 @@ def run_all_baseline():
     print(f"Sleep between models: {SLEEP_BETWEEN_MODELS} sec")
     print("="*70 + "\n")
 
-    # Output folder
+    # Output folder for summary
     outdir = Path("results_baseline_only")
     outdir.mkdir(parents=True, exist_ok=True)
     summary_path = outdir / "baseline_summary.json"
 
-    # Load previous results (για resume)
+    # Load previous results (για resume σε επίπεδο model)
     if summary_path.exists():
         with summary_path.open("r", encoding="utf-8") as f:
             prev = json.load(f)
@@ -55,6 +56,7 @@ def run_all_baseline():
     global_start = perf_counter()
 
     for model_name in MODELS:
+        # Αν το model υπάρχει ήδη στο summary ως success, μην το ξανατρέχεις
         if model_name in done_models:
             print(f"Skipping {model_name} (already in summary).")
             continue
@@ -99,10 +101,11 @@ def run_all_baseline():
                 json.dump({"results": results}, f, indent=2, ensure_ascii=False)
             continue
 
-        # Run evaluation
+        # Run evaluation (με sample-level resume από το eval_metaqa_simple)
         try:
             start = perf_counter()
-            eval_res = baseline.evaluate(DATASET)
+            # Χρησιμοποιούμε πάντα resume=True για να συνεχίζει από όπου σταμάτησε
+            eval_res = baseline.evaluate(DATASET, resume=True)
             end = perf_counter()
             elapsed_wrapper = end - start
 
@@ -170,7 +173,7 @@ def run_all_baseline():
         }, f, indent=2, ensure_ascii=False)
 
     print(f"\nSummary saved to: {summary_path}")
-    print("Per-sample files: simple_results/metaqa_<model>_baseline_no_rag.jsonl")
+    print("Per-sample files: baseline_results/metaqa_<model>_baseline_no_rag.jsonl")
     print("\n" + "="*70)
     print("BASELINE EVALUATIONS COMPLETE!")
     print("="*70 + "\n")
