@@ -1,0 +1,11 @@
+{
+  "results": [
+    {
+      "model": "llama3.2:1b",
+      "status": "success",
+      "accuracy": 0.05489092188599578,
+      "total_samples": 9947,
+      "time_sec": 9511.9392573
+    }
+  ]
+}
