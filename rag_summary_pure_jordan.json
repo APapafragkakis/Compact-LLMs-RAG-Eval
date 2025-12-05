@@ -1,0 +1,54 @@
+{
+  "method": "pure_jordan_replication",
+  "reference": "Jordan's gemma 12B accuracy: 0.9044",
+  "results": [
+    {
+      "model": "llama3.2:1b",
+      "accuracy": 0.7247411279782849,
+      "exact_match": 0.298683020006032,
+      "macro_f1": 0.5934136238819173,
+      "time": 0.031755599999996775,
+      "status": "success"
+    },
+    {
+      "model": "llama3.1:8b",
+      "accuracy": 0.8860963104453604,
+      "exact_match": 0.6541670855534332,
+      "macro_f1": 0.8283457611673946,
+      "time": 0.07988670000000297,
+      "status": "success"
+    },
+    {
+      "model": "mistral:7b",
+      "accuracy": 0.8264803458329144,
+      "exact_match": 0.6876445159344526,
+      "macro_f1": 0.8021016533015621,
+      "time": 0.026321199999983946,
+      "status": "success"
+    },
+    {
+      "model": "phi3:mini",
+      "accuracy": 0.8061727153915753,
+      "exact_match": 0.4963305519252036,
+      "macro_f1": 0.7276831456938573,
+      "time": 0.027093500000006543,
+      "status": "success"
+    },
+    {
+      "model": "llama3.2:3b",
+      "accuracy": 0.8782547501759325,
+      "exact_match": 0.6116417010153815,
+      "macro_f1": 0.8081927851582728,
+      "time": 8817.480757899999,
+      "status": "success"
+    },
+    {
+      "model": "gemma2:2b",
+      "accuracy": 0.8322107167990349,
+      "exact_match": 0.6798029556650246,
+      "macro_f1": 0.8147858791404601,
+      "time": 15903.0950145,
+      "status": "success"
+    }
+  ]
+}
