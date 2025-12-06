@@ -14,8 +14,7 @@ MODELS = [
     "llama3.2:3b",
     "gemma2:2b",
 ]
-
-DATASET = "data/wc2014qa.jsonl"
+DATASET = "data/WC-P1.txt"
 SLEEP_BETWEEN_MODELS = 10
 
 

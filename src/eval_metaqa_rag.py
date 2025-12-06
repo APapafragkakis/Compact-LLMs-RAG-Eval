@@ -243,7 +243,7 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
     """
     jsonl_path = Path(jsonl_path)
     
-    results_dir = Path("rag_results")
+    results_dir = Path("metaqa_rag_results")
     results_dir.mkdir(exist_ok=True)
     
     if output_path is None:

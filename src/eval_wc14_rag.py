@@ -1,10 +1,8 @@
-# eval_rag.py - EXACT Jordan Replication with Auto-Resume
+# eval_wc14_rag.py - EXACT Jordan Replication (WC-P1.txt format)
 
 import http.client
 import json
 import ast
-import string
-import re
 from time import perf_counter, sleep
 from pathlib import Path
 
@@ -63,7 +61,7 @@ def build_generation_prompt(question: str, facts: list[str]) -> str:
 
     facts_text = "\n".join(f"- {f}" for f in facts)
     
-    # EXACT from Jordan's config.yaml - lines 13-18
+    # EXACT from Jordan's config.yaml
     rag_prompt = (
         "Your task is to extract the answer from the documents. "
         "There is always relevant information present. "
@@ -84,7 +82,7 @@ def build_generation_prompt(question: str, facts: list[str]) -> str:
 
 
 def remote_generate(user_text: str):
-    """EXACT Jordan's system prompt from config.yaml line 10"""
+    """EXACT Jordan's system prompt from config.yaml"""
     system_message = "Respond to all questions directly without any explanation"
 
     payload = {
@@ -111,46 +109,43 @@ def remote_generate(user_text: str):
 
 
 def jordan_postprocess(llm_pred_str: str) -> str:
-    """EXACT Jordan's post-processing from run.py line 27
-    ONLY: pred.replace("\\n", " ")
-    """
+    """EXACT Jordan's post-processing from run.py line 27"""
     return llm_pred_str.replace("\n", " ")
 
 
 def jordan_normalize_pred(pred_str: str) -> str:
-    """EXACT Jordan's evaluation normalization from evaluate.py line 18
+    """EXACT Jordan's evaluation from evaluate.py line 18
     top1 = line_pred.rstrip().replace(" ", "_").lower().split(",")[0]
     """
     return pred_str.rstrip().replace(" ", "_").lower().split(",")[0]
 
 
 def jordan_normalize_gold(gold_str: str) -> str:
-    """EXACT Jordan's gold normalization from evaluate.py line 16
-    valid_answers = [ans.lower() for ans in valid_answers]
-    """
+    """EXACT Jordan's gold normalization from evaluate.py line 16"""
     return gold_str.lower()
 
 
-def jordan_metrics(gold: str, pred: str) -> dict:
-    """EXACT Jordan's metrics from evaluate.py
+def jordan_metrics(valid_answers: list, pred: str) -> dict:
+    """EXACT Jordan's evaluation from evaluate.py
     
-    Comparison logic:
-    - Normalize prediction: rstrip().replace(" ", "_").lower().split(",")[0]
-    - Normalize gold: lower()
-    - Check: if normalized_pred in normalized_gold_list
+    valid_answers = [ans.lower() for ans in valid_answers]
+    top1 = line_pred.rstrip().replace(" ", "_").lower().split(",")[0]
+    if top1 in valid_answers: correct += 1
     """
     
-    # For single gold answer
-    pred_normalized = jordan_normalize_pred(pred)
-    gold_normalized = jordan_normalize_gold(gold)
+    # Normalize valid answers
+    valid_normalized = [jordan_normalize_gold(ans) for ans in valid_answers]
     
-    # Simple exact match
-    top1_match = (pred_normalized == gold_normalized)
+    # Normalize prediction
+    pred_normalized = jordan_normalize_pred(pred)
+    
+    # Check if prediction is in ANY valid answer
+    top1_match = pred_normalized in valid_normalized
     
     return {
         "top1_match": top1_match,
         "pred_normalized": pred_normalized,
-        "gold_normalized": gold_normalized
+        "valid_normalized": valid_normalized
     }
 
 
@@ -159,13 +154,13 @@ def run_rag(question: str):
     # 1. Retrieval
     facts, t_retr, raw_retr = remote_retrieve(question)
     
-    # 2. Build prompt (NO filtering - give all facts to LLM)
+    # 2. Build prompt
     user_msg = build_generation_prompt(question, facts)
     
     # 3. Generation
     raw_answer, t_gen = remote_generate(user_msg)
     
-    # 4. Jordan's post-processing ONLY (run.py line 27)
+    # 4. Post-processing
     processed_answer = jordan_postprocess(raw_answer)
     
     total_latency = t_retr + t_gen
@@ -186,47 +181,59 @@ def run_rag(question: str):
 # EVALUATION
 # ============================================================================
 
-def load_jsonl(path):
+def load_wc14_txt(path):
+    """Parse Jordan's WC-P1.txt format
+    
+    Format: question?\tprimary_answer\tpath\tvalid_answers/\tother_data
+    Example: "who plays for Mexico ?\tAlan_PULIDO\t...\tCarlos_SALCIDO/Alan_PULIDO/\t..."
+    """
     with open(path, "r", encoding="utf-8") as f:
-        for line in f:
+        for idx, line in enumerate(f):
             line = line.strip()
             if not line:
                 continue
-            yield json.loads(line)
+            
+            # Split by "?"
+            parts = line.split("?")
+            if len(parts) < 2:
+                continue
+            
+            question = parts[0].strip()
+            ansData = parts[1]
+            
+            # Extract valid answers from column 4 (tab-separated)
+            tabs = ansData.strip().split("\t")
+            if len(tabs) < 3:
+                continue
+            
+            # Column 4 (index 2): "answer1/answer2/answer3/"
+            # Jordan's evaluate.py line 15: valid_answers = ansData.strip().split("\t")[2][:-1].split("/")
+            valid_answers_str = tabs[2][:-1] if tabs[2].endswith("/") else tabs[2]
+            valid_answers = valid_answers_str.split("/")
+            valid_answers = [ans.strip() for ans in valid_answers if ans.strip()]
+            
+            yield {
+                "id": idx,
+                "question": question,
+                "valid_answers": valid_answers
+            }
 
 
-def normalize_gold_answer(ans):
-    """Handle MetaQA format - get first answer if list"""
-    if isinstance(ans, list) and ans:
-        return ans[0].strip()
-    if isinstance(ans, str):
-        return ans.strip()
-    return ""
-
-
-def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
+def evaluate(txt_path: str, output_path: str = None, resume: bool = True):
     """
-    Pure Jordan evaluation, with optional auto-resume.
-    
-    - Αν resume=True και υπάρχει ήδη output αρχείο:
-      * Διαβάζει τα ήδη αποθηκευμένα αποτελέσματα
-      * Ξαναϋπολογίζει τα metrics για αυτά
-      * Συνεχίζει μόνο για τα δείγματα (id) που λείπουν.
-    - Αν resume=False ή δεν υπάρχει αρχείο:
-      * Ξεκινάει από την αρχή και κάνει overwrite.
+    EXACT Jordan evaluation with WC-P1.txt format
     """
-    jsonl_path = Path(jsonl_path)
+    txt_path = Path(txt_path)
     
     results_dir = Path("wc14_rag_results")
     results_dir.mkdir(exist_ok=True)
     
     if output_path is None:
         model_name = GENERATION_MODEL.replace(":", "_").replace(".", "_")
-        output_path = results_dir / f"wc2014_{model_name}_pure_jordan.jsonl"
+        output_path = results_dir / f"wc2014_{model_name}_jordan.jsonl"
     else:
         output_path = Path(output_path)
 
-    # Αν υπάρχει αρχείο και θέλουμε resume, θα το χρησιμοποιήσουμε
     resume_mode = resume and output_path.exists()
 
     total = 0
@@ -234,9 +241,7 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
     
     processed_ids = set()
 
-    # ===========================
-    # 1) Αν resume_mode, φόρτωσε ήδη υπάρχοντα αποτελέσματα
-    # ===========================
+    # Resume mode
     if resume_mode:
         print(f"\n[RESUME] Loading existing results from {output_path}")
         with open(output_path, "r", encoding="utf-8") as fin:
@@ -248,12 +253,10 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
                 qid_prev = obj.get("id")
                 processed_ids.add(qid_prev)
 
-                gold_prev_raw = obj.get("gold_answer")
-                gold_prev = normalize_gold_answer(gold_prev_raw)
+                valid_prev = obj.get("valid_answers", [])
                 pred_prev = obj.get("prediction", "")
 
-                # Recalculate metrics
-                metrics_prev = jordan_metrics(gold_prev, pred_prev)
+                metrics_prev = jordan_metrics(valid_prev, pred_prev)
 
                 total += 1
                 if metrics_prev["top1_match"]:
@@ -266,34 +269,30 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
     print(f"\n{'='*70}")
     print(f"EXACT JORDAN REPLICATION: {GENERATION_MODEL}")
     print(f"{'='*70}")
-    print("Prompts: EXACT Jordan (config.yaml)")
-    print("Post-processing: EXACT Jordan (run.py line 27)")
-    print("Metrics: EXACT Jordan (evaluate.py line 18)")
-    print("NO modifications, NO tricks, NO filtering")
+    print("Dataset: WC-P1.txt (Jordan's format)")
+    print("Evaluation: EXACT Jordan (evaluate.py)")
+    print("Multiple valid answers per question supported")
     if resume_mode:
-        print(f"Mode: RESUME (append remaining samples to {output_path})")
+        print(f"Mode: RESUME")
     else:
-        print(f"Mode: FRESH RUN (overwrite {output_path})")
+        print(f"Mode: FRESH RUN")
     print(f"{'='*70}\n")
 
-    # Αν κάνουμε resume, ανοίγουμε σε append. Αλλιώς overwrite.
     mode = "a" if resume_mode else "w"
     with open(output_path, mode, encoding="utf-8") as fout:
-        for sample in load_jsonl(jsonl_path):
-            qid = sample.get("id")
+        for sample in load_wc14_txt(txt_path):
+            qid = sample["id"]
 
-            # Αν έχουμε ήδη αυτό το id σε προηγούμενο run, κάνε skip
             if resume_mode and qid in processed_ids:
                 continue
 
-            question = sample.get("question", "")
-            gold_raw = sample.get("answer")
-            gold = normalize_gold_answer(gold_raw)
+            question = sample["question"]
+            valid_answers = sample["valid_answers"]
 
             res = run_rag(question)
             
-            # Jordan's metrics (evaluate.py)
-            metrics = jordan_metrics(gold, res["processed_answer"])
+            # Jordan's metrics
+            metrics = jordan_metrics(valid_answers, res["processed_answer"])
             
             total += 1
             if metrics["top1_match"]:
@@ -302,16 +301,15 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
             out_obj = {
                 "id": qid,
                 "question": question,
-                "gold_answer": gold_raw,
+                "valid_answers": valid_answers,
                 "prediction": res["processed_answer"],
                 "raw_answer": res["raw_answer"],
                 "retrieval_latency": res["retrieval_latency"],
                 "generation_latency": res["generation_latency"],
                 "total_latency": res["total_latency"],
-                "raw_retrieval": res["raw_retrieval"],
                 "top1_match": metrics["top1_match"],
                 "pred_normalized": metrics["pred_normalized"],
-                "gold_normalized": metrics["gold_normalized"]
+                "valid_normalized": metrics["valid_normalized"]
             }
             fout.write(json.dumps(out_obj) + "\n")
             fout.flush()
@@ -324,15 +322,15 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
 
     t_end = perf_counter()
     
-    # Final metrics (Jordan's hits@1)
+    # Final metrics
     accuracy = correct / total if total else 0.0
 
     print(f"\n{'='*70}")
     print("EXACT JORDAN REPLICATION - RESULTS")
     print(f"{'='*70}")
     print(f"Model: {GENERATION_MODEL}")
-    print(f"Dataset: {jsonl_path}")
-    print(f"Total samples (including resumed): {total}")
+    print(f"Dataset: {txt_path}")
+    print(f"Total samples: {total}")
     print(f"\nFinal Score:")
     print(f"hits@1 (accuracy): {accuracy:.4f}  ({correct}/{total})")
     print(f"\nTime: {t_end - t_start:.2f}s ({(t_end - t_start)/60:.1f} min)")
@@ -348,4 +346,4 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
 
 
 if __name__ == "__main__":
-    evaluate("data/wc2014qa.jsonl")
+    evaluate("data/WC-P1.txt")

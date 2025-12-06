@@ -15,7 +15,7 @@ MODELS = [
     "gemma2:2b",
 ]
 
-DATASET = "data/metaqa_1hop_only.jsonl"
+DATASET = "data/metaqa.jsonl"
 SLEEP_BETWEEN_MODELS = 10
 
 
