@@ -1,4 +1,5 @@
 {
+  "method": "no_rag_baseline",
   "results": [
     {
       "model": "llama3.2:1b",
@@ -6,6 +7,43 @@
       "accuracy": 0.05489092188599578,
       "total_samples": 9947,
       "time_sec": 9511.9392573
+    },
+    {
+      "model": "llama3.1:8b",
+      "status": "success",
+      "accuracy": 0.36191816628129087,
+      "total_samples": 9947,
+      "time_sec": 12380.919852699997
+    },
+    {
+      "model": "mistral:7b",
+      "status": "success",
+      "accuracy": 0.3182869206796019,
+      "total_samples": 9947,
+      "time_sec": 10868.140053099996
+    },
+    {
+      "model": "phi3:mini",
+      "status": "success",
+      "accuracy": 0.07962199658188399,
+      "total_samples": 9947,
+      "time_sec": 10074.042912499994
+    },
+    {
+      "model": "llama3.2:3b",
+      "status": "success",
+      "accuracy": 0.23524680808283904,
+      "total_samples": 9947,
+      "time_sec": 11938.265732299988
+    },
+    {
+      "model": "gemma2:2b",
+      "status": "success",
+      "accuracy": 0.18528199457122752,
+      "total_samples": 9947,
+      "time_sec": 12460.420491199999
     }
-  ]
+  ],
+  "total_time_sec": 67293.9499957,
+  "total_time_minutes": 1121.5658332616665
 }
