@@ -35,10 +35,10 @@ def run_all_rag():
         try:
             if 'eval_metaqa_rag' in sys.modules:
                 importlib.reload(sys.modules['eval_metaqa_rag'])
-            import eval_metaqa_rag
+            import eval_rag
             
-            eval_metaqa_rag.GENERATION_MODEL = model
-            result = eval_metaqa_rag.evaluate(DATASET)
+            eval_rag.GENERATION_MODEL = model
+            result = eval_rag.evaluate(DATASET)
             
             results.append({
                 "model": model,
