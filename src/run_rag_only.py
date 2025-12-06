@@ -33,8 +33,8 @@ def run_all_rag():
         print(f"{'#'*70}\n")
         
         try:
-            if 'eval_metaqa_rag' in sys.modules:
-                importlib.reload(sys.modules['eval_metaqa_rag'])
+            if 'eval_rag' in sys.modules:
+                importlib.reload(sys.modules['eval_rag'])
             import eval_rag
             
             eval_rag.GENERATION_MODEL = model
