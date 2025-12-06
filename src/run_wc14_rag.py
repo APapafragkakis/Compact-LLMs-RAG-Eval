@@ -1,4 +1,4 @@
-# run_rag_only.py - UNCHANGED
+# run_rag_only.py - EXACT Jordan Replication Runner
 
 import json
 from pathlib import Path
@@ -21,7 +21,7 @@ SLEEP_BETWEEN_MODELS = 10
 
 def run_all_rag():
     print("\n" + "="*70)
-    print("PURE JORDAN REPLICATION - ALL MODELS")
+    print("EXACT JORDAN REPLICATION - ALL MODELS")
     print("="*70 + "\n")
     
     results = []
@@ -33,23 +33,23 @@ def run_all_rag():
         print(f"{'#'*70}\n")
         
         try:
-            if 'eval_rag' in sys.modules:
-                importlib.reload(sys.modules['eval_rag'])
-            import eval_rag
+            if 'eval_wc14_rag' in sys.modules:
+                importlib.reload(sys.modules['eval_wc14_rag'])
+            import eval_wc14_rag
             
-            eval_rag.GENERATION_MODEL = model
-            result = eval_rag.evaluate(DATASET)
+            eval_wc14_rag.GENERATION_MODEL = model
+            result = eval_wc14_rag.evaluate(DATASET)
             
             results.append({
                 "model": model,
                 "accuracy": result["accuracy"],
-                "exact_match": result["exact_match"],
-                "macro_f1": result["macro_f1"],
+                "correct": result["correct"],
+                "total": result["total"],
                 "time": result["time"],
                 "status": "success"
             })
             
-            print(f"✓ Complete: Acc={result['accuracy']:.4f}")
+            print(f"✓ Complete: hits@1={result['accuracy']:.4f} ({result['correct']}/{result['total']})")
             
         except Exception as e:
             print(f"✗ Failed: {e}")
@@ -62,14 +62,14 @@ def run_all_rag():
     total_end = perf_counter()
     
     print("\n\n" + "="*70)
-    print("PURE JORDAN REPLICATION - FINAL SUMMARY")
+    print("EXACT JORDAN REPLICATION - FINAL SUMMARY")
     print("="*70)
-    print(f"{'Model':<20} {'Accuracy':<12} {'EM':<12} {'Macro F1':<12}")
+    print(f"{'Model':<20} {'hits@1 (Accuracy)':<20} {'Correct/Total':<15}")
     print("-"*70)
     
     for r in results:
         if r["status"] == "success":
-            print(f"{r['model']:<20} {r['accuracy']:.4f}       {r['exact_match']:.4f}       {r['macro_f1']:.4f}")
+            print(f"{r['model']:<20} {r['accuracy']:.4f}               {r['correct']}/{r['total']}")
         else:
             print(f"{r['model']:<20} FAILED")
     
@@ -78,10 +78,10 @@ def run_all_rag():
     print("\nComparison to Jordan (gemma 12B): 0.9044")
     print("="*70 + "\n")
     
-    with open("rag_summary_pure_jordan.json", "w") as f:
+    with open("rag_summary_exact_jordan.json", "w") as f:
         json.dump({
-            "method": "pure_jordan_replication",
-            "reference": "Jordan's gemma 12B accuracy: 0.9044",
+            "method": "exact_jordan_replication",
+            "reference": "Jordan's gemma 12B hits@1: 0.9044",
             "results": results
         }, f, indent=2)
 
