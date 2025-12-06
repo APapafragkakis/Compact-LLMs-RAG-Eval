@@ -16,7 +16,7 @@ HOST = "demos.isl.ics.forth.gr"
 RETRIEVE_ENDPOINT = "/SemanticRAG/generateEmbeddings"
 GENERATE_ENDPOINT = "/SemanticRAG/generate"
 
-RETRIEVAL_MODEL = "metaqa"
+RETRIEVAL_MODEL = "wc2014qa"
 GENERATION_MODEL = "llama3.1:8b"
 
 SLEEP_BETWEEN_REQUESTS = 0.7
@@ -248,7 +248,8 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
     
     if output_path is None:
         model_name = GENERATION_MODEL.replace(":", "_").replace(".", "_")
-        output_path = results_dir / f"metaqa_{model_name}_pure_jordan.jsonl"
+        output_path = results_dir / f"wc2014_{model_name}_pure_jordan.jsonl"
+
     else:
         output_path = Path(output_path)
 
