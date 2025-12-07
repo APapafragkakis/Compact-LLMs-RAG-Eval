@@ -45,9 +45,20 @@ def run_all_baseline():
 
     # Load previous results (για resume σε επίπεδο model)
     if summary_path.exists():
-        with summary_path.open("r", encoding="utf-8") as f:
-            prev = json.load(f)
-        results = prev.get("results", []) if isinstance(prev, dict) else prev
+        try:
+            with summary_path.open("r", encoding="utf-8") as f:
+                content_text = f.read().strip()
+                if not content_text:
+                    print(f"Warning: {summary_path} is empty. Starting fresh.")
+                    results = []
+                else:
+                    prev = json.loads(content_text)
+                    results = prev.get("results", []) if isinstance(prev, dict) else prev
+                    print(f"Loaded {len(results)} previous results from {summary_path}")
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f"Warning: Could not parse {summary_path}: {e}")
+            print("Starting fresh. (You may want to backup/delete the corrupted file)")
+            results = []
     else:
         results = []
 
