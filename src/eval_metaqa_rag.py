@@ -1,4 +1,4 @@
-# eval_metaqa_rag.py - Pure Jordan Replication with Auto-Resume
+# eval_metaqa_rag.py - Pure Jordan Replication with Auto-Resume + Timing
 
 import http.client
 import json
@@ -269,6 +269,11 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
 
     processed_ids = set()
 
+    # PURE TIMING ACCUMULATORS (δεν αλλάζουν το output format)
+    llm_time_total = 0.0          # sum of generation_latency
+    retrieval_time_total = 0.0    # sum of retrieval_latency
+    endpoint_time_total = 0.0     # sum of (retrieval + generation)
+
     # ===========================
     # 1) Αν resume_mode, φόρτωσε ήδη υπάρχοντα αποτελέσματα
     # ===========================
@@ -302,6 +307,11 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
                 total_tp += metrics_prev["tp"]
                 total_pred += metrics_prev["pred_count"]
                 total_gold += metrics_prev["gold_count"]
+
+                # προσθέτουμε και τα latency από παλιό run (αν υπάρχουν)
+                retrieval_time_total += obj.get("retrieval_latency", 0.0)
+                llm_time_total += obj.get("generation_latency", 0.0)
+                endpoint_time_total += obj.get("total_latency", 0.0)
 
         print(f"[RESUME] Found {len(processed_ids)} existing samples. Will skip these.\n")
 
@@ -353,6 +363,11 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
             total_pred += metrics["pred_count"]
             total_gold += metrics["gold_count"]
 
+            # PURE TIMING ACCUMULATION (μόνο in-memory)
+            retrieval_time_total += res["retrieval_latency"]
+            llm_time_total += res["generation_latency"]
+            endpoint_time_total += res["total_latency"]
+
             out_obj = {
                 "id": qid,
                 "question": question,
@@ -394,6 +409,8 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
     micro_r = total_tp / total_gold if total_gold else 0.0
     micro_f1 = 2 * micro_p * micro_r / (micro_p + micro_r) if (micro_p + micro_r) else 0.0
 
+    wall_time = t_end - t_start
+
     print(f"\n{'='*70}")
     print("PURE JORDAN REPLICATION - RESULTS")
     print(f"{'='*70}")
@@ -409,8 +426,18 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
     print(f"Micro Precision:              {micro_p:.4f}")
     print(f"Micro Recall:                 {micro_r:.4f}")
     print(f"Micro F1:                     {micro_f1:.4f}")
-    print(f"\nTime: {t_end - t_start:.2f}s ({(t_end - t_start)/60:.1f} min)")
+    print(f"\nWall-clock Time (with sleep/I-O): {wall_time:.2f}s ({wall_time/60:.1f} min)")
     print(f"Results: {output_path}")
+
+    # PURE TIMING SUMMARY (χωρίς sleep / overhead)
+    if total > 0:
+        print("\n--- PURE ENDPOINT TIMING (no sleep, no Python overhead) ---")
+        print(f"  Retrieval total time:        {retrieval_time_total:.2f}s ({retrieval_time_total/60:.2f} min)")
+        print(f"  LLM total generation time:   {llm_time_total:.2f}s ({llm_time_total/60:.2f} min)")
+        print(f"  Endpoint total (retr+gen):   {endpoint_time_total:.2f}s ({endpoint_time_total/60:.2f} min)")
+        print(f"  Avg retrieval latency:       {retrieval_time_total/total:.2f}s")
+        print(f"  Avg LLM latency:             {llm_time_total/total:.2f}s")
+        print(f"  Avg endpoint latency:        {endpoint_time_total/total:.2f}s")
     print(f"{'='*70}\n")
     
     return {
@@ -423,7 +450,15 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
         "micro_precision": micro_p,
         "micro_recall": micro_r,
         "total": total,
-        "time": t_end - t_start
+        "time": wall_time,  # wall-clock with sleeps
+
+        # extra fields για να τα βλέπεις στο run_metaqa_rag.py αν θέλεις
+        "llm_time_total": llm_time_total,
+        "retrieval_time_total": retrieval_time_total,
+        "endpoint_time_total": endpoint_time_total,
+        "llm_avg_latency": llm_time_total / total if total else 0.0,
+        "retrieval_avg_latency": retrieval_time_total / total if total else 0.0,
+        "endpoint_avg_latency": endpoint_time_total / total if total else 0.0,
     }
 
 

@@ -1,4 +1,4 @@
-# eval_wc14_rag.py - EXACT Jordan Replication (WC-P1.txt format)
+# eval_wc14_rag.py - EXACT Jordan Replication (WC-P1.txt format) + Timing
 
 import http.client
 import json
@@ -241,6 +241,11 @@ def evaluate(txt_path: str, output_path: str = None, resume: bool = True):
     
     processed_ids = set()
 
+    # PURE TIMING ACCUMULATORS (δεν αλλάζουν το output format)
+    llm_time_total = 0.0          # sum of generation_latency
+    retrieval_time_total = 0.0    # sum of retrieval_latency
+    endpoint_time_total = 0.0     # sum of (retrieval + generation)
+
     # Resume mode
     if resume_mode:
         print(f"\n[RESUME] Loading existing results from {output_path}")
@@ -261,6 +266,11 @@ def evaluate(txt_path: str, output_path: str = None, resume: bool = True):
                 total += 1
                 if metrics_prev["top1_match"]:
                     correct += 1
+
+                # Αν είχαν ήδη αποθηκευτεί latency fields, τα προσθέτουμε
+                retrieval_time_total += obj.get("retrieval_latency", 0.0)
+                llm_time_total += obj.get("generation_latency", 0.0)
+                endpoint_time_total += obj.get("total_latency", 0.0)
 
         print(f"[RESUME] Found {len(processed_ids)} existing samples. Will skip these.\n")
 
@@ -298,6 +308,11 @@ def evaluate(txt_path: str, output_path: str = None, resume: bool = True):
             if metrics["top1_match"]:
                 correct += 1
 
+            # PURE TIMING ACCUMULATION (μόνο in-memory)
+            retrieval_time_total += res["retrieval_latency"]
+            llm_time_total += res["generation_latency"]
+            endpoint_time_total += res["total_latency"]
+
             out_obj = {
                 "id": qid,
                 "question": question,
@@ -324,6 +339,7 @@ def evaluate(txt_path: str, output_path: str = None, resume: bool = True):
     
     # Final metrics
     accuracy = correct / total if total else 0.0
+    wall_time = t_end - t_start
 
     print(f"\n{'='*70}")
     print("EXACT JORDAN REPLICATION - RESULTS")
@@ -333,15 +349,33 @@ def evaluate(txt_path: str, output_path: str = None, resume: bool = True):
     print(f"Total samples: {total}")
     print(f"\nFinal Score:")
     print(f"hits@1 (accuracy): {accuracy:.4f}  ({correct}/{total})")
-    print(f"\nTime: {t_end - t_start:.2f}s ({(t_end - t_start)/60:.1f} min)")
+    print(f"\nWall-clock Time (with sleep/I-O): {wall_time:.2f}s ({wall_time/60:.1f} min)")
     print(f"Results: {output_path}")
+
+    # PURE TIMING SUMMARY (χωρίς sleep / Python overhead)
+    if total > 0:
+        print("\n--- PURE ENDPOINT TIMING (no sleep, no Python overhead) ---")
+        print(f"  Retrieval total time:        {retrieval_time_total:.2f}s ({retrieval_time_total/60:.2f} min)")
+        print(f"  LLM total generation time:   {llm_time_total:.2f}s ({llm_time_total/60:.2f} min)")
+        print(f"  Endpoint total (retr+gen):   {endpoint_time_total:.2f}s ({endpoint_time_total/60:.2f} min)")
+        print(f"  Avg retrieval latency:       {retrieval_time_total/total:.2f}s")
+        print(f"  Avg LLM latency:             {llm_time_total/total:.2f}s")
+        print(f"  Avg endpoint latency:        {endpoint_time_total/total:.2f}s")
     print(f"{'='*70}\n")
     
     return {
         "accuracy": accuracy,
         "correct": correct,
         "total": total,
-        "time": t_end - t_start
+        "time": wall_time,  # wall-clock with sleeps
+
+        # extra fields για να τα βλέπεις στο run_wc14_rag.py αν θέλεις
+        "llm_time_total": llm_time_total,
+        "retrieval_time_total": retrieval_time_total,
+        "endpoint_time_total": endpoint_time_total,
+        "llm_avg_latency": llm_time_total / total if total else 0.0,
+        "retrieval_avg_latency": retrieval_time_total / total if total else 0.0,
+        "endpoint_avg_latency": endpoint_time_total / total if total else 0.0,
     }
 
 
