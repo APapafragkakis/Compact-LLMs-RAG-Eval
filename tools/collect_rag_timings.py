@@ -3,9 +3,6 @@ from pathlib import Path
 from statistics import mean
 import csv
 
-# =========================
-# CONFIG
-# =========================
 DATASETS = {
     "metaqa": Path("metaqa_rag_results"),
     "wc14": Path("wc14_rag_results"),
@@ -14,9 +11,6 @@ DATASETS = {
 OUTPUT_CSV = "rag_latency_summary.csv"
 
 
-# =========================
-# CORE
-# =========================
 def collect_from_folder(folder: Path, dataset_name: str):
     rows = []
 
@@ -41,13 +35,9 @@ def collect_from_folder(folder: Path, dataset_name: str):
             "dataset": dataset_name,
             "model": file.stem,
             "num_queries": len(total),
-
-            # averages (per query)
             "retrieval_avg_sec": mean(retr),
             "llm_avg_sec": mean(gen),
             "endpoint_avg_sec": mean(total),
-
-            # totals (pure endpoint time)
             "retrieval_total_sec": sum(retr),
             "llm_total_sec": sum(gen),
             "endpoint_total_sec": sum(total),
@@ -60,14 +50,12 @@ def main():
     all_rows = []
 
     for dataset, folder in DATASETS.items():
-        rows = collect_from_folder(folder, dataset)
-        all_rows.extend(rows)
+        all_rows.extend(collect_from_folder(folder, dataset))
 
     if not all_rows:
         print("No results found.")
         return
 
-    # Pretty print
     print(
         f"{'Dataset':<8} {'Model':<40} {'N':<6} "
         f"{'Retr(s)':<10} {'LLM(s)':<10} {'Total(s)':<10}"
@@ -84,7 +72,6 @@ def main():
             f"{r['endpoint_avg_sec']:<10.2f}"
         )
 
-    # CSV output (Excel / pandas / LaTeX friendly)
     with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=all_rows[0].keys())
         writer.writeheader()
