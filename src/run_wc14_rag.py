@@ -7,7 +7,7 @@ import importlib
 import sys
 
 MODELS = [
-    "llama3.2:1b",
+#    "llama3.2:1b",
     "llama3.1:8b",
     "mistral:7b",
     "phi3:mini",

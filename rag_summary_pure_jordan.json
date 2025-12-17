@@ -3,40 +3,20 @@
   "reference": "Jordan's gemma 12B accuracy: 0.9044",
   "results": [
     {
-      "model": "llama3.2:1b",
-      "accuracy": 0.7256459233939881,
-      "exact_match": 0.2995878154217352,
-      "macro_f1": 0.5941855851160107,
-      "time": 2077.9835960000055,
-      "status": "success"
-    },
-    {
-      "model": "llama3.1:8b",
-      "accuracy": 0.8614657685734393,
-      "exact_match": 0.665326229013773,
-      "macro_f1": 0.8135119773668193,
-      "time": 16457.34783840002,
-      "status": "success"
-    },
-    {
-      "model": "mistral:7b",
-      "status": "failed",
-      "error": "[WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond"
-    },
-    {
-      "model": "phi3:mini",
-      "status": "failed",
-      "error": "[WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond"
-    },
-    {
       "model": "llama3.2:3b",
-      "status": "failed",
-      "error": "[WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond"
+      "accuracy": 0.8534231426560772,
+      "exact_match": 0.605308133105459,
+      "macro_f1": 0.785168778019479,
+      "time": 12703.49857190001,
+      "status": "success"
     },
     {
       "model": "gemma2:2b",
-      "status": "failed",
-      "error": "[WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond"
+      "accuracy": 0.816628129084146,
+      "exact_match": 0.6796018900170906,
+      "macro_f1": 0.7991481385318037,
+      "time": 16397.443201599992,
+      "status": "success"
     }
   ]
 }

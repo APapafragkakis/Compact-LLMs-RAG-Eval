@@ -1,0 +1,46 @@
+{
+  "method": "exact_jordan_replication",
+  "reference": "Jordan's gemma 12B hits@1: 0.9044",
+  "results": [
+    {
+      "model": "llama3.1:8b",
+      "accuracy": 0.8927800061709349,
+      "correct": 5787,
+      "total": 6482,
+      "time": 0.0569313999999963,
+      "status": "success"
+    },
+    {
+      "model": "mistral:7b",
+      "accuracy": 0.9270286948472694,
+      "correct": 6009,
+      "total": 6482,
+      "time": 0.054009000000007745,
+      "status": "success"
+    },
+    {
+      "model": "phi3:mini",
+      "accuracy": 0.8485035482875656,
+      "correct": 5500,
+      "total": 6482,
+      "time": 0.0474779999999555,
+      "status": "success"
+    },
+    {
+      "model": "llama3.2:3b",
+      "accuracy": 0.7375809935205183,
+      "correct": 4781,
+      "total": 6482,
+      "time": 1980.5358010000002,
+      "status": "success"
+    },
+    {
+      "model": "gemma2:2b",
+      "accuracy": 0.6937673557543967,
+      "correct": 4497,
+      "total": 6482,
+      "time": 9681.939298700001,
+      "status": "success"
+    }
+  ]
+}
