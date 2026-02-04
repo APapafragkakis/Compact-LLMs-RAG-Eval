@@ -7,6 +7,7 @@ Accuracy–Latency Trade-offs under a Unified Pipeline**
 Alexandros Papafragkakis, Yannis Tzitzikas  
 University of Crete & FORTH-ICS
 
+Paper: https://www.overleaf.com/read/rvztwdfhfrxh#9d2996
 
 ## Overview
 
