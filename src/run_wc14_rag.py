@@ -1,5 +1,3 @@
-# run_rag_only.py - EXACT Jordan Replication Runner
-
 import json
 from pathlib import Path
 from time import perf_counter, sleep
