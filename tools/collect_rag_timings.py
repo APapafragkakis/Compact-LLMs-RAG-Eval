@@ -79,6 +79,6 @@ def main():
 
     print(f"\n✓ CSV written to: {OUTPUT_CSV}")
 
-
+# main entry point
 if __name__ == "__main__":
     main()
