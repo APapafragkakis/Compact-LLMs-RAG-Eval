@@ -7,11 +7,6 @@ Accuracy–Latency Trade-offs under a Unified Pipeline**
 Alexandros Papafragkakis, Yannis Tzitzikas  
 University of Crete & FORTH-ICS
 
-📄 **Paper:** (add link)  
-- arXiv: (add link)  
-- PDF in repo: `paper/paper.pdf`
-
----
 
 ## Overview
 
@@ -93,19 +88,4 @@ To isolate generator effects, we keep retrieval and prompting fixed across model
 - Same embedder, hybrid retrieval parameters, reranker, and target top-k  
 - Same decoding settings (`temperature = 0`) and maximum generation length  
 - Same evaluation normalization applied to all model predictions  
-
-Minor run-to-run retrieval variation may occur due to backend serving effects.
-
----
-
-## Citation
-
-If you use this code or results, please cite:
-
-```bibtex
-@article{papafragkakis2026compactrag,
-  title={Compact Language Models in Retrieval-Augmented Generation: Accuracy--Latency Trade-offs under a Unified Pipeline},
-  author={Papafragkakis, Alexandros and Tzitzikas, Yannis},
-  year={2026}
-}
 
