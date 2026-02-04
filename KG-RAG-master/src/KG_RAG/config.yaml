@@ -1,0 +1,35 @@
+ingestion:
+  embedding-model: nomic-embed-text
+  persist-dir: examples/example1/retrieval_store
+  bm25-dir: bm25
+  vectorstore-dir: vectorstore
+  separate-filetypes: true
+
+retrieval:
+  candidate-pool-size: 10
+  topk: 5
+  score-threshold: 0.6
+  embedding-model: nomic-embed-text
+  persist-dir: examples/example1/retrieval_store
+  bm25-dir: bm25
+  vectorstore-dir: vectorstore
+  separate-filetypes: true
+
+
+
+generation:
+  prompts:
+    system: "Respond to all questions in a direct manner and explain your answer briefly. If provided with facts, pay very close attention to it"
+
+    rag_prompt: >
+      Examine all the provided data carefully and answer according to the given data. 
+      If the data is completely irrelevant,you must mention that no relevant data are provided and answer according to your knowledge.
+      You are given the following data:
+
+    kgrag_prompt: >
+      Examine all the provided data carefully and answer according to the given data. 
+      If the data is completely irrelevant,you must mention that no relevant data are provided and answer according to your knowledge.
+      You are given the following data:
+
+  model: llama3.1:8b
+  temperature: 0
