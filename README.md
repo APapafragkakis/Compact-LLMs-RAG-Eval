@@ -52,7 +52,7 @@ All models are evaluated under the **same retrieval configuration**.
 ## Benchmarks
 
 - **MetaQA (single-hop)** — movie-domain QA  
-- **WC2014QA (single-hop)** — FIFA World Cup factual QA
+- **WC2014QA** — FIFA World Cup factual QA
 
 ---
 
