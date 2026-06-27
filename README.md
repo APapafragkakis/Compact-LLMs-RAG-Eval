@@ -7,7 +7,10 @@ Accuracy–Latency Trade-offs under a Unified Pipeline**
 Alexandros Papafragkakis, Yannis Tzitzikas  
 University of Crete & FORTH-ICS
 
-Paper: https://www.overleaf.com/read/rvztwdfhfrxh#9d2996
+> **Accepted as a full paper at the 14th EETN Conference on Artificial Intelligence (SETN 2026), Chania, Crete, September 9–11, 2026.**  
+> To appear in the conference proceedings, published by ACM in the International Conference Proceedings Series (ACM Digital Library).
+
+Paper (preprint): https://www.overleaf.com/read/rvztwdfhfrxh#9d2996
 
 ## Overview
 
@@ -90,3 +93,4 @@ To isolate generator effects, we keep retrieval and prompting fixed across model
 - Same decoding settings (`temperature = 0`) and maximum generation length  
 - Same evaluation normalization applied to all model predictions  
 
+---
