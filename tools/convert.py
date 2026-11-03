@@ -1,11 +1,13 @@
-import os, json
+"""Convert a MetaQA QA file (question<TAB>answers) to the jsonl format in data/.
 
-PATH_1H = r"C:\Users\alexp\OneDrive\Υπολογιστής\Endpoint_Evaluation\MetaQA\1-hop\vanilla\qa_test_qtype.txt"
-PATH_2H = r"C:\Users\alexp\OneDrive\Υπολογιστής\Endpoint_Evaluation\MetaQA\2-hop\vanilla\qa_test_qtype.txt"
-PATH_3H = r"C:\Users\alexp\OneDrive\Υπολογιστής\Endpoint_Evaluation\MetaQA\3-hop\vanilla\qa_test_qtype.txt"
+Example, for the 1-hop test split used in the paper:
+    python tools/convert.py MetaQA/1-hop/vanilla/qa_test.txt data/metaqa.jsonl --hop 1-hop
+"""
 
-BASE_DIR = r"C:\Users\alexp\OneDrive\Υπολογιστής\Endpoint_Evaluation"
-OUTPUT_PATH = os.path.join(BASE_DIR, "data", "metaqa_full.jsonl")
+import argparse
+import json
+import os
+
 
 def parse_line(line: str):
     s = line.strip()
@@ -20,6 +22,7 @@ def parse_line(line: str):
         p = s.split("|||", 1)
         return p[0].strip(), p[1].strip()
     return None, None
+
 
 def dump_file(path: str, hop: str, start_id: int, f_out) -> int:
     wrote = 0
@@ -38,20 +41,23 @@ def dump_file(path: str, hop: str, start_id: int, f_out) -> int:
             wrote += 1
     return wrote
 
+
 def main():
-    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
-    total = 0
-    cur_id = 0
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as out:
-        for path, hop in [(PATH_1H, "1-hop"), (PATH_2H, "2-hop"), (PATH_3H, "3-hop")]:
-            if not os.path.exists(path):
-                print(f"[WARN] missing: {path}")
-                continue
-            n = dump_file(path, hop, cur_id, out)
-            print(f"[INFO] {hop}: wrote {n} lines from {os.path.basename(path)}")
-            cur_id += n
-            total += n
-    print(f"[DONE] Wrote {total} lines to {OUTPUT_PATH}")
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("input", help="MetaQA QA file, e.g. MetaQA/1-hop/vanilla/qa_test.txt")
+    parser.add_argument("output", help="output jsonl file")
+    parser.add_argument("--hop", default="1-hop", help="value for the source_split field (default: 1-hop)")
+    args = parser.parse_args()
+
+    out_dir = os.path.dirname(args.output)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    with open(args.output, "w", encoding="utf-8") as out:
+        n = dump_file(args.input, args.hop, 0, out)
+
+    print(f"[DONE] Wrote {n} lines to {args.output}")
+
 
 if __name__ == "__main__":
     main()

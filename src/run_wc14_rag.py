@@ -5,7 +5,7 @@ import importlib
 import sys
 
 MODELS = [
-#    "llama3.2:1b",
+    "llama3.2:1b",
     "llama3.1:8b",
     "mistral:7b",
     "phi3:mini",
@@ -18,7 +18,7 @@ SLEEP_BETWEEN_MODELS = 10
 
 def run_all_rag():
     print("\n" + "="*70)
-    print("EXACT JORDAN REPLICATION - ALL MODELS")
+    print("WC14 RAG EVALUATION - ALL MODELS")
     print("="*70 + "\n")
     
     results = []
@@ -59,7 +59,7 @@ def run_all_rag():
     total_end = perf_counter()
     
     print("\n\n" + "="*70)
-    print("EXACT JORDAN REPLICATION - FINAL SUMMARY")
+    print("WC14 RAG EVALUATION - FINAL SUMMARY")
     print("="*70)
     print(f"{'Model':<20} {'hits@1 (Accuracy)':<20} {'Correct/Total':<15}")
     print("-"*70)
@@ -72,13 +72,11 @@ def run_all_rag():
     
     print("="*70)
     print(f"Total time: {(total_end - total_start)/60:.1f} minutes")
-    print("\nComparison to Jordan (gemma 12B): 0.9044")
     print("="*70 + "\n")
     
-    with open("rag_summary_exact_jordan.json", "w") as f:
+    with open("rag_summary_wc14.json", "w") as f:
         json.dump({
-            "method": "exact_jordan_replication",
-            "reference": "Jordan's gemma 12B hits@1: 0.9044",
+            "method": "rag",
             "results": results
         }, f, indent=2)
 

@@ -5,10 +5,10 @@ import importlib
 import sys
 
 MODELS = [
-#    "llama3.2:1b",
-#    "llama3.1:8b",
-#   "mistral:7b",
-#    "phi3:mini",
+    "llama3.2:1b",
+    "llama3.1:8b",
+    "mistral:7b",
+    "phi3:mini",
     "llama3.2:3b",
     "gemma2:2b",
 ]
@@ -19,7 +19,7 @@ SLEEP_BETWEEN_MODELS = 10
 
 def run_all_rag():
     print("\n" + "="*70)
-    print("PURE JORDAN REPLICATION - ALL MODELS")
+    print("METAQA RAG EVALUATION - ALL MODELS")
     print("="*70 + "\n")
     
     results = []
@@ -60,7 +60,7 @@ def run_all_rag():
     total_end = perf_counter()
     
     print("\n\n" + "="*70)
-    print("PURE JORDAN REPLICATION - FINAL SUMMARY")
+    print("METAQA RAG EVALUATION - FINAL SUMMARY")
     print("="*70)
     print(f"{'Model':<20} {'Accuracy':<12} {'EM':<12} {'Macro F1':<12}")
     print("-"*70)
@@ -73,13 +73,11 @@ def run_all_rag():
     
     print("="*70)
     print(f"Total time: {(total_end - total_start)/60:.1f} minutes")
-    print("\nComparison to Jordan (gemma 12B): 0.9044")
     print("="*70 + "\n")
     
-    with open("rag_summary_pure_jordan.json", "w") as f:
+    with open("rag_summary_metaqa.json", "w") as f:
         json.dump({
-            "method": "pure_jordan_replication",
-            "reference": "Jordan's gemma 12B accuracy: 0.9044",
+            "method": "rag",
             "results": results
         }, f, indent=2)
 
