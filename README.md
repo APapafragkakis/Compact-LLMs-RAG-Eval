@@ -111,3 +111,8 @@ To rerun the evaluation against the API, use the scripts in `src/` (`run_*` loop
 ## Acknowledgments
 
 We thank the Information Systems Laboratory (ISL) at FORTH-ICS for access to the SemanticRAG infrastructure and computational resources. This work is supported by the ECHOES project, funded by the European Union under Horizon Europe, Grant Agreement No. 101157364.
+
+
+## License
+
+The code is released under the [MIT License](LICENSE). The MetaQA and WC2014QA data in `data/` come from their original authors and keep their original licenses (references in [docs/metrics.md](docs/metrics.md)).
