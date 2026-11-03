@@ -1,118 +1,276 @@
-# Beyond Parameter Count: Selecting Compact Language Models for Retrieval-Augmented Generation
+# Structured Sparsity in Spiking Neural Networks
 
-Evaluation code and per-question results for the paper:
+Edge pruning in spiking CNNs, G2G (group-to-group) connectivity and Dynamic Sparse Training in spiking MLPs.
 
-**Beyond Parameter Count: Selecting Compact Language Models for Retrieval-Augmented Generation**  
-Alexandros Papafragkakis, Yannis Tzitzikas  
-University of Crete & FORTH-ICS
+Alexandros Papafragkakis
 
-To appear in the Proceedings of the 14th EETN Conference on Artificial Intelligence (SETN 2026), Chania, Greece, September 9–11, 2026. ACM.  
-DOI: [10.1145/3860954.3860972](https://doi.org/10.1145/3860954.3860972) (active once the proceedings are published in the ACM Digital Library)
+Full report: [REPORT.pdf](REPORT.pdf)
 
-## Overview
+## Highlights
 
-We compare six compact open-source language models (1B–8B parameters) as the generator of a RAG pipeline. Retrieval, reranking and the prompt template are the same for every run, so differences come from the generator.
+- **Spiking CNN on CIFAR-10:** dynamic pruning beats pre-training pruning at every sparsity level (79.99% vs 79.04% at 70%, 69.11% vs 66.76% at 95%). Post-training pruning collapses above 50% sparsity (16.80% at 70%).
+- **ResNet–SNN on CIFAR-10:** sparse G2G classifiers match the dense SNN (93.4–93.5%) with 2–3.7× lower firing rate for p′ ≤ 0.5. At p′ = 0, Index reaches 93.47% at a firing rate of 0.059, against 93.44% at 0.216 for Dense.
+- **Dynamic Sparse Training:** improves static sparsity by up to +2.7 points and keeps Random from collapsing at p′ = 0.75 on CIFAR-10 (29.6% → 39.7%).
 
-![Controlled RAG pipeline](docs/figures/pipeline.png)
+## Edge Pruning in Spiking CNNs
 
-We report Hits@1, F1 and Exact Match, McNemar tests for every pair of models, and latency split into retrieval and generation.
+### Convolution as a graph
 
-## Key Findings
+A convolutional layer is a bipartite graph. Every input channel c and every output channel c′ is a node, and the kernel K(c′,c) is the edge between them.
 
-- Parameter count is an unreliable predictor of RAG accuracy across the compact model families we evaluate.
-- MetaQA: Gemma 2 2B and Mistral 7B are statistically tied (81.66% vs 81.45% Hits@1, p = 0.588). Llama 3.2 3B is within 0.8pp of Llama 3.1 8B.
-- WC2014QA: Mistral 7B beats Llama 3.1 8B (92.70% vs 89.28%, p < 0.001) with about 24% lower end-to-end latency (0.61s vs 0.80s).
-- Retrieval latency is roughly the same for all generators. Generation latency depends on architecture, not size: Phi-3 Mini and Mistral 7B are the fastest.
-- RAG improves Hits@1 by +49.6pp to +84.5pp for all models.
+<img src="docs/figures/conv_as_graph.png" alt="Convolution as a graph: four input channels, two filters with one kernel per input channel, two output channels" width="620">
 
-## Results
+Four input channels, two filters with one 3×3 kernel per input channel, and two output channels. The dashed edge I₄ → O₁ is ablated: its kernel is zero.
 
-Hits@1 with RAG and mean end-to-end latency per query:
+The contribution of edge c → c′ at output position (x, y) is
 
-| Model | MetaQA H@1 (%) | MetaQA latency (s) | WC2014QA H@1 (%) | WC2014QA latency (s) |
-|---|---:|---:|---:|---:|
-| Llama 3.2 1B | 72.56 | 0.891 | 75.35 | 0.723 |
-| Gemma 2 2B | 81.66 | 0.915 | 69.38 | 0.755 |
-| Llama 3.2 3B | 85.34 | 0.907 | 73.76 | 0.769 |
-| Phi-3 Mini 3.8B | 79.42 | **0.689** | 84.85 | 0.618 |
-| Mistral 7B | 81.45 | 0.721 | **92.70** | **0.614** |
-| Llama 3.1 8B | **86.15** | 0.919 | 89.28 | 0.804 |
+```math
+E_{c \to c'}(x, y) = \sum_{i=0}^{k-1} \sum_{j=0}^{k-1} I_c(x+i,\, y+j)\, K_{c',c}(i, j)
+\qquad\text{or}\qquad
+E_{c \to c'} = I_c * K_{c',c}
+```
 
-![Accuracy vs latency](docs/figures/accuracy_latency_frontier.png)
+and the output feature map of channel c′ is the sum over all incoming edges:
 
-Full tables (baseline vs RAG, F1, EM, all McNemar tests, latency breakdown) are in [docs/results.md](docs/results.md). Metric definitions are in [docs/metrics.md](docs/metrics.md).
+```math
+O_{c'}(x, y) = \sum_{c=0}^{C-1} \sum_{i=0}^{k-1} \sum_{j=0}^{k-1} I_c(x+i,\, y+j)\, K_{c',c}(i, j)
+\qquad\text{or}\qquad
+O_{c'} = \sum_{c=0}^{C-1} I_c * K_{c',c}
+```
 
-### Which model to use
+Ablating an edge sets its kernel to zero, so channel c no longer contributes to c′:
 
-| Scenario | Model | Why |
+```math
+K_{c',c}(i, j) = 0 \;\; \forall i, j \quad\Rightarrow\quad E_{c \to c'} = 0
+```
+
+If other edges carry the same information (for example, other channels that also detect corners), the output channel barely changes. If the edge was the only one carrying it, the output channel loses that information.
+
+### Standard vs grouped convolution
+
+<img src="docs/figures/grouped_conv.png" alt="Standard fully connected convolution vs grouped convolution" width="700">
+
+In a standard convolution every output channel is connected to every input channel, even though many input channels carry similar information. In a grouped convolution the channels are split into groups and each group only uses its own channels. This removes connections from the start, avoids mixing unrelated features, and lets each group learn different features. It is the same idea as G2G connectivity in the spiking MLPs below.
+
+### Network
+
+<img src="docs/figures/spiking_cnn.png" alt="Spiking CNN with seven convolutional spiking layers" width="320" align="right">
+
+`KS32_FullySpiking_Small` has seven convolutional spiking layers (CSL1–CSL7, each conv + batch norm + spiking neurons) with residual connections between selected blocks, a 4×4 adaptive average pooling layer and two dense spiking layers (DSL1–DSL2). All activations are binary spikes.
+
+### Pruning strategies
+
+- **Pre:** a fixed percentage of edges is removed at random before training, and the topology stays fixed
+- **Dynamic:** starts like Pre, then at regular intervals removes the least important active edges and re-activates the same number of inactive ones at random, so the sparsity stays constant
+- **Post:** the dense network is trained first, then the least important edges are removed and the network is fine-tuned
+
+Edge importance is the L1 norm of the kernel:
+
+```math
+\text{importance}(c \to c') = \lVert K_{c',c} \rVert_1 = \sum_{i,j} \lvert K_{c',c}(i, j) \rvert
+```
+
+A norm close to zero means the kernel has almost no effect on the output, so the edge is a safe candidate for removal.
+
+<br clear="right">
+
+### Results (CIFAR-10)
+
+T = 4, 50 epochs, SGD (momentum 0.9, weight decay 5×10⁻⁴) with cosine annealing. Dense: **83.37%**.
+
+| Sparsity | Pre | Dynamic | Post |
+|---|---|---|---|
+| 30% | 82.19 | **82.46** | 75.90 |
+| 50% | 80.68 | **81.98** | 60.30 |
+| 70% | 79.04 | **79.99** | 16.80 |
+| 90% | 71.44 | **72.50** | 12.57 |
+| 95% | 66.76 | **69.11** | 9.96 |
+
+<img src="docs/figures/cnn_pruning.png" alt="Accuracy and firing rate vs sparsity for Pre, Dynamic and Post pruning" width="600">
+
+Dynamic pruning works best because it decides which edges to remove after the network has started learning, and it changes the topology a little at a time. Post-training pruning removes too much at once at high sparsity, and fine-tuning cannot recover.
+
+Layerwise firing rates. CSL7 fires the most because it has to integrate everything regardless of sparsity. Dynamic pruning gives smooth, slowly decreasing profiles, while Post collapses at high sparsity.
+
+<img src="docs/figures/cnn_layerwise_fr.png" alt="Layerwise firing rates CSL1-CSL7 for each strategy and sparsity" width="620">
+
+## G2G Connectivity in Spiking MLPs
+
+The classifier is a spiking MLP with three hidden LIF layers. In the G2G models each layer is split into 8 groups. Connections inside a group are always active (p = 1). Connections between groups are kept with probability **p′**, so a higher p′ means more inter-group connections and a denser network.
+
+- **Index:** contiguous blocks of neurons, which keeps spatial locality across layers
+- **Random:** random assignment, which keeps the sparsity but removes the structure
+- **Mixer:** index-based groups in the first and last hidden layer and interleaved groups (neuron l in group l mod G) in the middle one, so features mix across groups in a controlled way
+
+<img src="docs/figures/grouping_strategies.png" alt="Index, Random and Mixer grouping" width="700">
+
+**Dense** is the fully connected baseline. For comparisons it is capacity-matched to the sparse models.
+
+### ResNet–SNN (CIFAR-10)
+
+![ResNet–SNN pipeline](docs/figures/resnet_snn.png)
+
+A frozen, truncated ResNet-32 pretrained on CIFAR extracts features (cut after `layer1`, followed by average pooling). The features are min–max normalized per sample, rate-encoded into spike trains and classified by the G2G spiking MLP. Accuracy saturates, so firing rate becomes the main difference between models.
+
+| p′ | Dense* | Index | Mixer | Random |
+|---|---|---|---|---|
+| 0.00 | 93.44 / 0.2159 | **93.47 / 0.0590** | 93.43 / 0.0924 | 93.39 / 0.0892 |
+| 0.15 | 93.48 / 0.1881 | 93.49 / 0.0766 | **93.50** / 0.0852 | 93.45 / **0.0632** |
+| 0.50 | **93.51** / 0.1600 | 93.37 / 0.0823 | 93.43 / 0.0952 | **93.51 / 0.0816** |
+| 0.75 | 93.42 / 0.1283 | 93.46 / 0.1048 | **93.49 / 0.1019** | 93.36 / 0.1093 |
+
+Best test accuracy (%) / overall firing rate. \*Dense is fully connected and capacity-matched to the sparse models at each p′.
+
+<img src="docs/figures/resnet_snn_firing_rate.png" alt="Firing rate vs p′ on CIFAR-10 for Dense, Index, Mixer and Random" width="560">
+
+### Static sparsity vs Dynamic Sparse Training (CIFAR-10 / CIFAR-100)
+
+DST keeps the number of connections fixed and rewires them during training. Every 1,000 steps it prunes 10% of the active connections and grows the same number of new ones.
+
+| Pruning (`--cp`) | Removes | Growth (`--cg`) | Adds |
+|---|---|---|---|
+| `set` | smallest-magnitude weights | `random` | random inactive edges |
+| `random` | random edges | `hebb` | edges with high pre/post co-activation |
+| `hebb` | edges with low pre/post co-activation | | |
+
+![Accuracy vs p′ for Dense, Static and DST](docs/figures/dst_vs_static.png)
+
+- Sparse models beat the dense SNN (35.7% on CIFAR-10, 11.1% on CIFAR-100) everywhere except static sparsity at p′ = 0.75 (Random on CIFAR-10, Index on CIFAR-100).
+- With DST, all architectures peak at p′ = 0.05. On CIFAR-10: Index 47.10%, Mixer 47.07%, Random 45.33%. On CIFAR-100: Mixer 21.57%, Random 19.68%, Index 19.27%.
+- DST helps most where static sparsity struggles, e.g. Random at p′ = 0.75 on CIFAR-10 goes from 29.6% to 39.7%.
+
+## Code
+
+- `src/train_cnn.py`: edge pruning in the spiking CNN
+- `src/train.py`: the Dense, Index, Random and Mixer spiking MLPs with static or dynamic sparsity, with or without the ResNet feature extractor
+- `src/crossval.py`: k-fold cross-validation for the spiking MLPs
+- `src/run_ablation_one.py`: intra-group ablation of a trained spiking MLP
+
+### Installation
+
+Requires Python 3.12+.
+
+```bash
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+For an NVIDIA GPU, install the CUDA build of PyTorch first ([pytorch.org](https://pytorch.org/get-started/locally/)), for example:
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+```
+
+On Windows with an AMD GPU you can use DirectML (`pip install torch-directml`), but it needs a PyTorch version that DirectML supports. The device is picked automatically: DirectML, then CUDA, then CPU.
+
+Datasets are downloaded to `data/` the first time you run.
+
+### Spiking CNN pruning
+
+Run from the repository root:
+
+```bash
+python src/train_cnn.py --strategy STRATEGY --sparsity SPARSITY [OPTIONS]
+```
+
+| Argument | Description | Default |
 |---|---|---|
-| Factual / entity extraction (like WC2014QA) | Mistral 7B | Highest accuracy, significantly beats the 8B model, lowest latency |
-| Multi-entity QA (like MetaQA) | Llama 3.2 3B | 0.80pp below the 8B model with less than half the parameters |
-| Strict latency budget (< 0.7s) | Phi-3 Mini | Only model under 0.7s end-to-end on both benchmarks |
-| Size-constrained (≤ 3B) | Llama 3.2 3B | Best accuracy in the ≤ 3B tier on MetaQA |
+| `--strategy` | `dense`, `pre`, `dynamic`, `post` | `dense` |
+| `--sparsity` | fraction of edges removed in each pruned layer | `0.5` |
+| `--dataset` | `cifar10`, `cifar100` | `cifar10` |
+| `--epochs`, `--T`, `--batch_size` | training epochs, timesteps, batch size | `50`, `4`, `256` |
+| `--lr`, `--momentum`, `--weight_decay` | SGD with cosine annealing | `0.1`, `0.9`, `5e-4` |
+| `--update_every`, `--update_frac`, `--update_until` | dynamic: epochs between updates, fraction of active edges replaced, fraction of training with updates | `1`, `0.1`, `0.75` |
+| `--finetune_epochs`, `--finetune_lr` | post: fine-tuning after pruning | `10`, `0.01` |
+| `--prune_first_layer` | also prune CSL1 (kept dense by default, it has only 3 input channels) | off |
+| `--enc` | `direct` (image repeated T times) or `rate` | `direct` |
 
-## Setup
+```bash
+python src/train_cnn.py --strategy dense
+python src/train_cnn.py --strategy dynamic --sparsity 0.7
+```
 
-- **Models:** Llama 3.2 1B, Gemma 2 2B, Llama 3.2 3B, Phi-3 Mini 3.8B, Mistral 7B, Llama 3.1 8B
-- **Benchmarks:** MetaQA 1-hop (9,947 test questions, movies) and WC2014QA (6,482 test questions, 2014 FIFA World Cup)
-- **Retrieval:** SemanticRAG (Sapidis et al., TPDL 2025) through its HTTP API. Hybrid search (BM25 + nomic-embed-text), cross-encoder reranking (gte-reranker-modernbert-base), top-10 passages, 500-character chunks with 50 overlap
-- **Generation:** temperature 0, `max_new_tokens=128`, 4-bit NF4 quantization (bitsandbytes), batch size 1
-- **Hardware:** single 16 GB GPU (AMD Radeon RX 9070 XT) on the remote server
-- **Latency:** measured on the client as the HTTP round-trip, so it includes network time
+The defaults follow the training setup in the report. At the end it prints the test accuracy, the overall firing rate and the firing rate of each CSL. Use `--seed` for repeatable runs.
 
-See Section 3 of the paper for details.
+### Spiking MLPs
+
+Run from the repository root:
+
+```bash
+python src/train.py --dataset DATASET --model MODEL [OPTIONS]
+```
+
+| Argument | Description | Default |
+|---|---|---|
+| `--dataset` | `fashionmnist`, `cifar10`, `cifar100` | `fashionmnist` |
+| `--model` | `dense`, `index`, `random`, `mixer` | `dense` |
+| `--p_inter` | inter-group connection probability p′ (sparse models) | `0.15` |
+| `--hidden_dim` | neurons per hidden layer | `2048` |
+| `--epochs` | training epochs | `20` |
+| `--T` | simulation timesteps | `50` |
+| `--batch_size` | batch size | `256` |
+| `--enc` | input encoding without ResNet: `current` (analog input) or `rate` (Bernoulli spikes) | `current` |
+| `--enc_scale`, `--enc_bias` | scale and bias applied to the input before encoding | `1.0`, `0.0` |
+| `--use_resnet` | frozen ResNet-32 feature extractor (CIFAR only) | off |
+| `--sparsity_mode` | `static` or `dynamic` (DST) | `static` |
+| `--cp` | DST pruning rule: `set`, `random`, `hebb` | `set` |
+| `--cg` | DST growth rule: `hebb`, `random` | `hebb` |
+| `--enforce_sparsity` | firing-rate regularization | off |
+| `--warmup_epochs` | epochs before the regularization starts | `10` |
+
+Training uses Adam (lr 1e-3, weight decay 1e-4) and cross-entropy on the output spike counts. At the end it prints the per-layer firing rates. No random seed is fixed, so results vary slightly between runs.
+
+### Examples
+
+```bash
+# CIFAR-10, Mixer with static sparsity
+python src/train.py --dataset cifar10 --model mixer --p_inter 0.05
+
+# CIFAR-10, Index with DST (Hebbian pruning and growth)
+python src/train.py --dataset cifar10 --model index --p_inter 0.05 --sparsity_mode dynamic --cp hebb --cg hebb
+
+# ResNet–SNN on CIFAR-10
+python src/train.py --dataset cifar10 --model index --use_resnet --p_inter 0.15 --hidden_dim 512
+```
+
+The sweeps used for the report are in `scripts/` (Windows batch files).
+
+### Cross-validation
+
+`src/crossval.py` takes the same arguments as `train.py`, plus `--k_folds` (default 5). Each fold trains for `--epochs` epochs (default 5 here). The output can be collected with `tools/cv_results.py`:
+
+```bash
+mkdir results_cv_5fold_5ep_p_sweep
+python src/crossval.py --dataset cifar10 --model index --p_inter 0.05 > results_cv_5fold_5ep_p_sweep/index_p0.05.txt
+python tools/cv_results.py
+```
+
+### Checkpoints
+
+Each run saves a checkpoint to `checkpoints/` after every epoch and resumes from it if interrupted. When a run finishes, a `.DONE` file is created and the same run is skipped next time. Delete the `.DONE` file to run it again.
+
+### Intra-group ablation
+
+`src/run_ablation_one.py` loads a trained checkpoint, keeps only the intra-group connections and reports the accuracy drop. It takes the same arguments as `train.py`:
+
+```bash
+python src/run_ablation_one.py --dataset cifar10 --model index --p_inter 0.05
+```
 
 ## Repository Layout
 
 ```
-data/       test questions (metaqa.jsonl, wc2014qa.jsonl, WC-P1.txt)
-src/        scripts that query the API and score the answers
-tools/      scripts that aggregate results into tables and latency summaries
-out/        per-question outputs for every model, with and without RAG
-docs/       full results, metric definitions, figures
+models/     Dense, Index, Random and Mixer SNNs, spiking CNN, frozen ResNet feature extractor
+src/        training scripts, cross-validation, intra-group ablation
+data/       dataset loaders (datasets are downloaded here)
+utils/      input encoding
+tools/      scripts that collected result tables from the original sweep logs
+scripts/    sweep scripts used for the report
+docs/       figures used in this README
+REPORT.pdf  full report
 ```
-
-Every line in `out/` is one question, with the gold answer(s), the model prediction, the correctness flags and the retrieval and generation latency. The numbers in the paper are computed from these files.
-
-## Reproducing
-
-The scripts call the SemanticRAG HTTP API, which is not publicly available. Without it you can still recompute every metric and significance test from the outputs in `out/`.
-
-The scripts use only the Python standard library (Python 3.9+). Run them from the repository root:
-
-```bash
-# Hits@1, F1, EM and McNemar tests for both datasets (Tables 1-4 in the paper)
-python tools/compute_metrics.py
-
-# LaTeX tables and Hits@1 summaries
-python tools/postprocess_metaqa_metrics.py
-python tools/postprocess_wc14_metrics.py
-
-# Mean retrieval, generation and end-to-end latency per model
-python tools/collect_rag_timings.py
-```
-
-To rerun the evaluation against the API, use the scripts in `src/` (`run_*` loops over models, `eval_*` runs one model).
-
-## Citation
-
-```bibtex
-@inproceedings{papafragkakis2026beyond,
-  author    = {Papafragkakis, Alexandros and Tzitzikas, Yannis},
-  title     = {Beyond Parameter Count: Selecting Compact Language Models for Retrieval-Augmented Generation},
-  booktitle = {Proceedings of the 14th EETN Conference on Artificial Intelligence (SETN 2026)},
-  year      = {2026},
-  publisher = {ACM},
-  address   = {New York, NY, USA},
-  doi       = {10.1145/3860954.3860972}
-}
-```
-
-## Acknowledgments
-
-We thank the Information Systems Laboratory (ISL) at FORTH-ICS for access to the SemanticRAG infrastructure and computational resources. This work is supported by the ECHOES project, funded by the European Union under Horizon Europe, Grant Agreement No. 101157364.
-
 
 ## License
 
-The code is released under the [MIT License](LICENSE). The MetaQA and WC2014QA data in `data/` come from their original authors and keep their original licenses (references in [docs/metrics.md](docs/metrics.md)).
+The code is released under the [MIT License](LICENSE).
