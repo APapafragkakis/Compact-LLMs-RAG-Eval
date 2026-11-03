@@ -366,4 +366,4 @@ def evaluate(jsonl_path: str, output_path: str = None, resume: bool = True):
 
 
 if __name__ == "__main__":
-    evaluate("data/metaqa_1hop_only.jsonl")
+    evaluate("data/metaqa.jsonl")

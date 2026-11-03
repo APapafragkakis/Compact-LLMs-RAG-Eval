@@ -4,8 +4,8 @@ from statistics import mean
 import csv
 
 DATASETS = {
-    "metaqa": Path("metaqa_rag_results"),
-    "wc14": Path("wc14_rag_results"),
+    "metaqa": Path("out/metaqa_rag_results"),
+    "wc14": Path("out/wc14_rag_results"),
 }
 
 OUTPUT_CSV = "rag_latency_summary.csv"
