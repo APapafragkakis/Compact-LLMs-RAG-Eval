@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "If you use this code or these results, please cite the paper below."
+title: "Beyond Parameter Count: Selecting Compact Language Models for Retrieval-Augmented Generation (evaluation code and results)"
+type: software
+authors:
+  - family-names: Papafragkakis
+    given-names: Alexandros
+    affiliation: "University of Crete and FORTH-ICS"
+    orcid: "https://orcid.org/0009-0001-3666-2327"
+  - family-names: Tzitzikas
+    given-names: Yannis
+    affiliation: "University of Crete and FORTH-ICS"
+repository-code: "https://github.com/APapafragkakis/Compact-LLMs-RAG-Eval"
+keywords:
+  - retrieval-augmented generation
+  - compact language models
+  - question answering
+  - benchmarking
+preferred-citation:
+  type: conference-paper
+  title: "Beyond Parameter Count: Selecting Compact Language Models for Retrieval-Augmented Generation"
+  authors:
+    - family-names: Papafragkakis
+      given-names: Alexandros
+      orcid: "https://orcid.org/0009-0001-3666-2327"
+    - family-names: Tzitzikas
+      given-names: Yannis
+  collection-title: "Proceedings of the 14th EETN Conference on Artificial Intelligence (SETN 2026)"
+  conference:
+    name: "14th EETN Conference on Artificial Intelligence (SETN 2026)"
+    city: Chania
+    country: GR
+    date-start: 2026-09-09
+    date-end: 2026-09-11
+  publisher:
+    name: ACM
+    city: "New York, NY"
+    country: US
+  year: 2026
+  doi: "10.1145/3860954.3860972"
