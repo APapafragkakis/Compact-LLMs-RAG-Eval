@@ -20,16 +20,16 @@ PRETTY_NAMES = {
     "llama3_1_8b": "Llama 3.1 8B",
 }
 
-RAG_DIR = Path("metaqa_rag_results")
-BASELINE_DIR = Path("metaqa_baseline_results")
+RAG_DIR = Path("out/metaqa_rag_results")
+BASELINE_DIR = Path("out/metaqa_baseline_results")
 
 
 def rag_path(model: str) -> Path:
-    return RAG_DIR / f"metaqa_{model}.jsonl"
+    return RAG_DIR / f"metaqa_{model}_pure_.jsonl"
 
 
 def baseline_path(model: str) -> Path:
-    return BASELINE_DIR / f"metaqa_{model}.jsonl"
+    return BASELINE_DIR / f"metaqa_{model}_baseline_no_rag.jsonl"
 
 
 def load_jsonl(path: Path):

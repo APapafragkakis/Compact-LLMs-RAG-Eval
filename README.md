@@ -78,6 +78,22 @@ Every line in `out/` is one question, with the gold answer(s), the model predict
 
 The scripts call the SemanticRAG HTTP API, which is not publicly available. Without it you can still recompute every metric and significance test from the outputs in `out/`.
 
+The scripts use only the Python standard library (Python 3.9+). Run them from the repository root:
+
+```bash
+# Hits@1, F1, EM and McNemar tests for both datasets (Tables 1-4 in the paper)
+python tools/compute_metrics.py
+
+# LaTeX tables and Hits@1 summaries
+python tools/postprocess_metaqa_metrics.py
+python tools/postprocess_wc14_metrics.py
+
+# Mean retrieval, generation and end-to-end latency per model
+python tools/collect_rag_timings.py
+```
+
+To rerun the evaluation against the API, use the scripts in `src/` (`run_*` loops over models, `eval_*` runs one model).
+
 ## Citation
 
 ```bibtex
